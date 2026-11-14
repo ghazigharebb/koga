@@ -488,6 +488,16 @@ body{overscroll-behavior-y:none}
 .ring .mid .units{color:var(--ink2);font-family:inherit;font-size:13px}
 .ring .mid .units .num{color:var(--ink);font-size:15px;font-weight:800}
 .brs .units .num{color:var(--ink);font-weight:800}
+
+/* best sellers */
+.topc{margin-bottom:18px}
+.topr{display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.topr:last-child{border:0}
+.topr .en{font-family:Sora,"KU";font-weight:700;font-size:14px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.topr .bar{height:7px;border-radius:99px;background:var(--p3);overflow:hidden;margin-top:7px}
+.topr .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--volt));transform-origin:right}
+.enter .topr .bar i{animation:growx 1s var(--ease) both;animation-delay:calc(var(--i)*70ms + 300ms)}
+@media (max-width:760px){.topr .row.sp{flex-wrap:wrap}.topr .en{white-space:normal}}
 </style>
 </head>
 <body>
@@ -521,6 +531,6 @@ body{overscroll-behavior-y:none}
 
 
 
-<script src="app.js?v=400e78b0f533"></script>
+<script src="app.js?v=527ae1a7d49e"></script>
 </body>
 </html>
