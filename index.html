@@ -517,8 +517,8 @@ td{white-space:nowrap}td.mute{white-space:normal}
       items: (seedItems || []).map(x => ({ ...x, r: cents(x.r), w: cents(x.w), s: [...x.s] })),
       customers: (seedCustomers || []).map(x => ({ ...x, debt: cents(x.debt) })),
       branches: ['لقی 1', 'لقی 2'],
-      team: [{ name: 'غازی', role: 'owner', branch: -1, pw: null }, { name: 'سەرپەرشت', role: 'sup', branch: -1, pct: null, salary: null, salaryCur: 'USD', pw: null }, { name: 'qara', role: 'staff', branch: 0, pct: null, salary: null, salaryCur: 'USD', pw: null }],
-      ledger: [], notes: [], cur: 'USD', rate: 1690, rates: [{ t: now == null ? new Date(0) : now, rate: 1690, by: 'غازی' }], jards: [],
+      team: [{ name: 'وەستا غەریب', role: 'owner', branch: -1, pw: null }, { name: 'سەرپەرشت', role: 'sup', branch: -1, pct: null, salary: null, salaryCur: 'USD', pw: null }, { name: 'qara', role: 'staff', branch: 0, pct: null, salary: null, salaryCur: 'USD', pw: null }],
+      ledger: [], notes: [], cur: 'USD', rate: 1690, rates: [{ t: now == null ? new Date(0) : now, rate: 1690, by: 'وەستا غەریب' }], jards: [],
       target: 100000, sales: [], expenses: [], payments: [], purchases: [], exchanges: [], approvals: [], log: [], unread: {}, nextNo: 20001, nextId: 200, tz: 180
     };
   }
@@ -840,7 +840,19 @@ td{white-space:nowrap}td.mute{white-space:normal}
     return JSON.parse(JSON.stringify(out));
   }
 
-  return { Err, LV, ROLE, TYPES, PAY, LK, SHARED, ACTIONS, init, apply, project, log, moves, refundCalc, fmtMoney, fmtCur, iqd, esc, cents, ms, isoD, dayStart, pctTxt };
+  /* give an account a new name everywhere it is written: receipts, log, pay, notes, unread counters */
+  function rename(st, from, to) {
+    if (!from || !to || from === to || !st.team.some(u => u.name === from) || st.team.some(u => u.name === to)) return false;
+    const walk = o => {
+      if (Array.isArray(o)) { for (let i = 0; i < o.length; i++) { if (o[i] === from) o[i] = to; else if (o[i] && typeof o[i] === 'object') walk(o[i]); } return; }
+      for (const k of Object.keys(o)) { const v = o[k]; if ((k === 'by' || k === 'toUser' || k === 'to' || k === 'name') && v === from && !(k === 'name' && o.price !== undefined)) o[k] = to; else if (v && typeof v === 'object') walk(v); }
+    };
+    st.team.find(u => u.name === from).name = to;
+    ['sales', 'expenses', 'payments', 'purchases', 'exchanges', 'approvals', 'log', 'jards', 'ledger', 'notes', 'rates'].forEach(k => { if (st[k]) walk(st[k]); });
+    if (st.unread && from in st.unread) { st.unread[to] = (st.unread[to] || 0) + st.unread[from]; delete st.unread[from]; }
+    return true;
+  }
+  return { Err, LV, ROLE, TYPES, PAY, LK, SHARED, ACTIONS, init, apply, project, rename, log, moves, refundCalc, fmtMoney, fmtCur, iqd, esc, cents, ms, isoD, dayStart, pctTxt };
 });
 </script>
 <script>
@@ -1115,7 +1127,7 @@ function showLogin(msg, info) {
   L.innerHTML = `<div class="lcard">${LHEAD}
     <p class="mute">${first ? 'یەکەم جارە: وشەی نهێنیی بەڕێوەبەر (' + esc(boss.name) + ') دابنێ. دواتر تەنها تۆ ئەکاونت بۆ کارمەندەکان دروست دەکەیت.' : 'بۆ چوونەژوورەوە ئەکاونتەکەت هەڵبژێرە و وشەی نهێنی بنووسە.'}</p>
     ${first ? `<label class="f">وشەی نهێنیی نوێ (لانی کەم 4 پیت)<input class="inp" id="lp1" type="password" autocomplete="new-password"></label><label class="f">دووبارەی بنووسەوە<input class="inp" id="lp2" type="password" autocomplete="new-password"></label>${info && info.needCode ? '<label class="f">کۆدی دامەزراندن (یەک جار)<input class="inp num" id="lcode" type="text" autocomplete="off"></label>' : ''}`
-      : `<label class="f">ئەکاونت<select class="inp" id="lu">${ready.map(u => `<option value="${esc(u.name)}">${esc(u.name)} — ${ROLE[u.role]}</option>`).join('')}</select></label><label class="f">وشەی نهێنی<input class="inp" id="lp" type="password" autocomplete="current-password"></label>`}
+      : `<label class="f">ئەکاونت<select class="inp" id="lu">${ready.map(u => `<option value="${esc(u.name)}">${esc(u.name)}</option>`).join('')}</select></label><label class="f">وشەی نهێنی<input class="inp" id="lp" type="password" autocomplete="current-password"></label>`}
     <button class="btn volt big" id="lgo">${first ? 'دانان و چوونەژوورەوە' : 'چوونەژوورەوە'}</button><p class="lerr" id="lerr">${msg || ''}</p></div>`;
   const fail = m => { $('#lerr').textContent = m; const c = L.querySelector('.lcard'); c.classList.remove('shk'); void c.offsetWidth; c.classList.add('shk'); };
   $('#lgo').onclick = () => {
