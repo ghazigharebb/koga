@@ -14,7 +14,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
   const PAY = { cash: 'کاش', fib: 'FIB', debt: 'قەرز' };
   const LK = { dayoff: 'دەوامی ڕۆژی پشوو', salary: 'مووچە', bonus: 'پاداشت', cut: 'بڕین', other: 'هیتر' };
   /* keys every device shares; everything else in the app's S is screen state */
-  const SHARED = ['items', 'customers', 'branches', 'team', 'ledger', 'notes', 'cur', 'rate', 'rates', 'jards', 'target', 'sales', 'expenses', 'payments', 'purchases', 'exchanges', 'approvals', 'log', 'unread', 'nextNo', 'nextId', 'adjusted', 'jardAdj', 'tz'];
+  const SHARED = ['items', 'customers', 'branches', 'team', 'ledger', 'notes', 'cur', 'rate', 'rates', 'jards', 'target', 'sales', 'expenses', 'payments', 'purchases', 'exchanges', 'approvals', 'log', 'unread', 'nextNo', 'nextId', 'adjusted', 'jardAdj', 'tz', 'closes'];
   /* messages that exist only because the server cannot trust the screen */
   const OWNER_ONLY = 'تەنها بەڕێوەبەر دەتوانێت ئەم کارە بکات', DENIED = 'دەسەڵاتی ئەم کارەت نییە', BAD = 'داواکارییەکە دروست نییە';
   const VOIDED = 'سەبەتەکە گۆڕا؛ داشکاندنەکە هەڵوەشایەوە', AMT = 'بڕێکی دروست بنووسە';
@@ -53,7 +53,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       customers: (seedCustomers || []).map(x => ({ ...x, debt: cents(x.debt) })),
       branches: ['لقی بازاڕ', 'لقی 60م'],
       team: [{ name: 'وەستا غەریب', role: 'owner', branch: -1, pw: null }, { name: 'سەرپەرشت', role: 'sup', branch: -1, pct: null, salary: null, salaryCur: 'USD', pw: null }, { name: 'qara', role: 'staff', branch: 0, pct: null, salary: null, salaryCur: 'USD', pw: null }],
-      ledger: [], notes: [], cur: 'USD', rate: 1690, rates: [{ t: now == null ? new Date(0) : now, rate: 1690, by: 'وەستا غەریب' }], jards: [],
+      ledger: [], notes: [], closes: [], cur: 'USD', rate: 1690, rates: [{ t: now == null ? new Date(0) : now, rate: 1690, by: 'وەستا غەریب' }], jards: [],
       target: 100000, sales: [], expenses: [], payments: [], purchases: [], exchanges: [], approvals: [], log: [], unread: {}, nextNo: 20001, nextId: 200, tz: 180
     };
   }
@@ -118,6 +118,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       const needCust = type !== 'retail' || pay === 'debt', cu = needCust ? st.customers.find(c => c.id === p.customer) : null;
       if (needCust && !cu) throw new Err(pay === 'debt' ? 'بۆ فرۆشتن بە قەرز دەبێت کڕیار هەڵبژێریت' : 'بۆ ' + TYPES[type] + ' دەبێت کڕیار هەڵبژێریت');
       if (pay === 'fib' && !p.fibOk) throw new Err('سەرەتا دڵنیابە پارەکە لە FIB گەیشتووە و نیشانەکە دابنێ');
+      if (pay === 'fib' && str(p.fibRef, 60).length < 3) throw new Err('ژمارەی مامەڵەی FIB بنووسە (لە ئەپی FIB دەردەکەوێت)');
       for (const l of lines) if (l.qty > l.it.s[b]) throw new Err('بڕی «' + l.it.name + '» لە کۆگا زیاترە');
       const sub = lines.reduce((a, l) => a + l.qty * l.price, 0);
       let disc = 0, ap = null;
@@ -164,17 +165,18 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       log(st, u.name, br(st, u, p), now, ok ? 'ok' : 'no', ok ? `بەڕێوەبەر ڕازی بوو بە داشکاندنی ${money(st, a.amt)}` : `بەڕێوەبەر داشکاندنی ${money(st, a.amt)}ی ڕەت کردەوە`, 'owner', a.by);
     }],
     return: [2, (st, u, p, now) => {
-      const b = br(st, u, p), sale = saleOf(st, p.no), r = refundCalc(sale, p.qty);
+      const b = br(st, u, p), sale = saleOf(st, p.no), r = refundCalc(sale, p.qty), why = str(p.why, 200);
       if (!r) throw new Err('بڕی گەڕاوە لە فرۆشراو زیاترە');
       if (!r.value) throw new Err('بڕی لانی کەم یەک کاڵا دیاری بکە');
+      if (why.length < 2) throw new Err('هۆکاری گەڕاندنەوەکە بنووسە');
       r.q.forEach(x => { x.l.ret += x.n; const it = item(st, x.l.id); if (it) it.s[sale.branch] += x.n; });
       sale.refunded += r.refund;
       let cash = r.refund, note = '';
       if (sale.pay === 'debt') { const cu = st.customers.find(c => c.id === sale.customer), off = cu ? Math.min(cu.debt, r.refund) : 0; if (cu) cu.debt -= off; cash = r.refund - off; note = ` — ${money(st, off)} لە قەرزی ${esc(cu ? cu.name : '')} کەم کرایەوە`; }
       if (sale.pay === 'fib') { cash = 0; sale.fibBack = (sale.fibBack || 0) + r.refund; note = ' — بە FIB دەگەڕێنرێتەوە'; } else if (sale.pay === 'cash') note = ' — بە کاش لە قاصە درایەوە';
       sale.cashBack = (sale.cashBack || 0) + cash;
-      (sale.rets || (sale.rets = [])).push({ t: now, amt: r.refund, cash, fib: sale.pay === 'fib' ? r.refund : 0, branch: b });
-      log(st, u.name, b, now, 'ret', `گەڕاندنەوە لە پسولەی <b class="num">#${sale.no}</b>: ${r.q.filter(x => x.n).map(x => esc(x.l.name) + ' ×' + x.n).join('، ')} — ${money(st, r.refund)}${note}`);
+      (sale.rets || (sale.rets = [])).push({ t: now, amt: r.refund, cash, fib: sale.pay === 'fib' ? r.refund : 0, branch: b, by: u.name, why });
+      log(st, u.name, b, now, 'ret', `گەڕاندنەوە لە پسولەی <b class="num">#${sale.no}</b>: ${r.q.filter(x => x.n).map(x => esc(x.l.name) + ' ×' + x.n).join('، ')} — ${money(st, r.refund)}${note} — هۆکار: ${esc(why)}`);
       return { no: sale.no, refund: r.refund };
     }],
     exchange: [2, (st, u, p, now) => { // warranty: the faulty unit comes back, a new one goes out, no money moves
@@ -343,6 +345,22 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       const old = st.rate; st.rate = v / 100;
       if (old !== st.rate) { st.rates.unshift({ t: now, rate: st.rate, by: u.name }); log(st, u.name, br(st, u, p), now, 'cur', `نرخی دۆلار گۆڕدرا: <span class="num">100$ = ${grp(Math.round(old * 100))} → ${grp(Math.round(v))} د.ع</span>`, 'all'); }
     }],
+    fibVerify: [3, (st, u, p, now) => { // the manager saw this transfer in the FIB app
+      const sale = st.sales.find(x => x.no === p.no);
+      if (!sale || sale.pay !== 'fib') throw new Err(BAD);
+      if (sale.fibChecked) throw new Err('ئەم مامەڵەیە پێشتر پشتڕاست کراوەتەوە');
+      sale.fibChecked = { t: now, by: u.name };
+      log(st, u.name, sale.branch, now, 'ok', `مامەڵەی FIB ی پسولەی <b class="num">#${sale.no}</b> پشتڕاست کرایەوە (${esc(sale.fibRef)})`);
+    }],
+    drawerClose: [1, (st, u, p, now) => { // blind cash count: the person types what is in the drawer, never sees what should be there
+      const b = br(st, u, p), counted = p.counted;
+      if (u.role === 'owner') throw new Err(DENIED);
+      if (!Number.isInteger(counted) || counted < 0) throw new Err(AMT);
+      const expected = cashExpected(st, b, now), c = { id: st.nextId++, t: now, by: u.name, branch: b, expected, counted, diff: counted - expected, note: str(p.note, 200) };
+      (st.closes || (st.closes = [])).unshift(c); if (st.closes.length > 800) st.closes.length = 800;
+      log(st, u.name, b, now, 'jard', `داخستنی قاصە: ژمێردراو ${money(st, counted)} — ${c.diff === 0 ? 'ڕاستە' : (c.diff < 0 ? 'کەمە ' : 'زیادە ') + money(st, Math.abs(c.diff))}`);
+      return { id: c.id };
+    }],
     setTarget: [1, (st, u, p) => {
       if (u.role !== 'owner') throw new Err('تەنها بەڕێوەبەر ئامانج دەگۆڕێت');
       if (!Number.isInteger(p.target) || !(p.target > 0)) throw new Err(AMT);
@@ -364,6 +382,23 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
   }
 
   /* the copy one person may receive: never a password hash, and only what their level may see */
+  /* cash that should be in a branch drawer today: cash sales + cash debt payments - cash given back - expenses */
+  function cashExpected(st, b, now) {
+    const t0 = dayStart(st, now), td = x => ms(x.t) >= t0;
+    let c = 0;
+    st.sales.forEach(x => { if (x.branch === b && td(x) && x.pay === 'cash') c += x.total; (x.rets || []).forEach(r => { if (r.branch === b && td(r)) c -= r.cash; }); });
+    st.payments.forEach(x => { if (x.branch === b && td(x) && x.method !== 'fib') c += x.amt; });
+    st.expenses.forEach(x => { if (x.branch === b && td(x)) c -= x.amt; });
+    return c;
+  }
+  /* start clean for real use: every test sale, log line, count and payment goes; items, customers, accounts and settings stay */
+  function resetActivity(st, seedItems, seedCustomers) {
+    ['sales', 'expenses', 'payments', 'purchases', 'exchanges', 'approvals', 'log', 'jards', 'ledger', 'notes', 'closes'].forEach(k => st[k] = []);
+    st.unread = {}; st.nextNo = 20001; st.adjusted = 0; st.jardAdj = 0;
+    const si = new Map((seedItems || []).map(x => [x.id, x])), sc = new Map((seedCustomers || []).map(x => [x.id, x]));
+    st.items.forEach(i => { delete i.f; const x = si.get(i.id); if (x) { i.s = x.s.slice(); i.r = cents(x.r); i.w = cents(x.w); } });
+    st.customers.forEach(c => { const x = sc.get(c.id); c.debt = x ? cents(x.debt) : 0; });
+  }
   function project(st, userName) {
     const u = acct(st, userName); if (!u) throw new Err(BAD);
     const lv = LV[u.role], own = lv === 3, cut = (o, k) => { const c = { ...o }; delete c[k]; return c; };
@@ -382,7 +417,8 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       unread: { [u.name]: st.unread[u.name] || 0 },
       jards: lv > 1 ? st.jards : st.jards.filter(j => j.by === u.name),
       ledger: own ? st.ledger : st.ledger.filter(x => x.to === u.name),
-      notes: own ? st.notes : st.notes.filter(n => n.to === 'all' || (Array.isArray(n.to) && n.to.includes(u.name)))
+      notes: own ? st.notes : st.notes.filter(n => n.to === 'all' || (Array.isArray(n.to) && n.to.includes(u.name))),
+      closes: lv > 1 ? (st.closes || []) : (st.closes || []).filter(c => c.by === u.name).map(c => ({ id: c.id, t: c.t, by: c.by, branch: c.branch, counted: c.counted, note: c.note })) // staff never learn what the system expected
     };
     return JSON.parse(JSON.stringify(out));
   }
@@ -399,7 +435,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
     if (st.unread && from in st.unread) { st.unread[to] = (st.unread[to] || 0) + st.unread[from]; delete st.unread[from]; }
     return true;
   }
-  return { Err, LV, ROLE, TYPES, PAY, LK, SHARED, ACTIONS, init, apply, project, rename, log, moves, refundCalc, fmtMoney, fmtCur, iqd, esc, cents, ms, isoD, dayStart, pctTxt };
+  return { Err, LV, ROLE, TYPES, PAY, LK, SHARED, ACTIONS, init, apply, project, rename, resetActivity, cashExpected, log, moves, refundCalc, fmtMoney, fmtCur, iqd, esc, cents, ms, isoD, dayStart, pctTxt };
 });
 
 // online mode: public address + public (anon) key only. No secret belongs in this file.
@@ -480,7 +516,7 @@ const latin = s => String(s).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.ind
 const pn = (v, dinar) => { let x = latin(v ?? '').replace(/[\s,،]/g, ''); if (dinar && /^\d{1,3}(\.\d{3})+$/.test(x)) x = x.replace(/\./g, ''); return Number(x); };
 document.addEventListener('input', e => { const el = e.target; if (!el.matches || !el.matches('input.num,#q,#jQ,#cQ') || el.type === 'date') return; const v = latin(el.value); if (v !== el.value) { const c = el.selectionStart; el.value = v; try { el.setSelectionRange(c, c); } catch (x) {} } }, true);
 /* the sample remembers everything on this device */
-const KEY = 'koga_sample_v2';
+const KEY = 'koga_sample_v3';
 function save() { if (window.__noSave || REMOTE) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 function load() { if (window.__noSave) return; try { const raw = localStorage.getItem(KEY); if (raw) Object.assign(S, JSON.parse(raw, (k, v) => k === 't' && typeof v === 'string' ? new Date(v) : v)); } catch (e) {} }
 let saveT; ['click', 'change', 'input'].forEach(ev => document.addEventListener(ev, () => { clearTimeout(saveT); saveT = setTimeout(save, 400); }));
@@ -764,7 +800,7 @@ function drawCart() {
       ${disc || waiting ? `<div class="row sp"><span>کۆی پێش داشکاندن</span>${money(sub)}</div><div class="row sp"><span>داشکاندن ${waiting ? '<span class="tag a">چاوەڕوانی ڕەزامەندیی بەڕێوەبەر</span>' : '<span class="tag g">ڕەزامەندی دراوە</span>'}</span><span>− ${money(waiting ? req.amt : disc)}</span></div>` : ''}
       <div class="tot"><span>کۆی گشتی</span><b class="num" id="totB">${fmtMoney(total)}</b></div>
       <div class="pay">${Object.keys(PAY).map(k => `<button data-pay="${k}" class="${c.pay === k ? 'on' : ''}">${PAY[k][1]}</button>`).join('')}</div>
-      ${c.pay === 'fib' ? `<div class="fibbox"><input class="inp num" id="fibRef" placeholder="ژمارەی مامەڵەی FIB (ئارەزوومەندانە)" value="${esc(c.fibRef)}" autocomplete="off"><label class="chk"><input type="checkbox" id="fibOk" ${c.fibOk ? 'checked' : ''}><span>پارەکەم لە ئەپی FIB بینی و گەیشتووە</span></label></div>` : ''}
+      ${c.pay === 'fib' ? `<div class="fibbox"><input class="inp num" id="fibRef" placeholder="ژمارەی مامەڵەی FIB (پێویستە)" value="${esc(c.fibRef)}" autocomplete="off"><label class="chk"><input type="checkbox" id="fibOk" ${c.fibOk ? 'checked' : ''}><span>پارەکەم لە ئەپی FIB بینی و گەیشتووە</span></label></div>` : ''}
       <div class="row"><button class="ghost grow" id="discBtn" ${!c.lines.length || waiting ? 'disabled' : ''}>${isOwner() ? 'داشکاندن' : 'داواکاریی داشکاندن'}</button><button class="ghost" id="clearBtn" ${!c.lines.length ? 'disabled' : ''}>بەتاڵکردن</button></div>
       <button class="btn volt big" id="sellBtn" ${!c.lines.length || waiting ? 'disabled' : ''}>${waiting ? 'چاوەڕوانی ڕەزامەندی…' : 'فرۆشتن'}</button></div>`;
   const C = $('#cart'), tb = $('#totB'), prev = S.prevTotal || 0; S.lastAdd = null;
@@ -847,13 +883,13 @@ V.returns = (no) => {
   const left = sale.lines.some(l => l.qty - l.ret > 0), wEnd = new Date(sale.t); wEnd.setFullYear(wEnd.getFullYear() + 1); const inW = new Date() <= wEnd;
   $('#rBody').innerHTML = `<div class="scroll"><table><tr><th>کاڵا</th><th>نرخ</th><th>فرۆشراو</th><th>پێشتر گەڕاوە</th><th>ئێستا دەگەڕێتەوە</th><th>زەمانەت</th></tr>
     ${sale.lines.map((l, i) => `<tr><td class="en">${esc(l.name)}</td><td>${money(l.price)}</td><td class="num">${l.qty}</td><td class="num">${l.ret}</td><td>${l.qty - l.ret > 0 ? `<input class="inp num rq" data-i="${i}" type="text" inputmode="decimal" min="0" max="${l.qty - l.ret}" value="0" style="width:90px">` : '<span class="tag n">تەواو گەڕاوە</span>'}</td><td><div class="row"><span class="tag ${inW ? 'g' : 'r'}">${inW ? 'تا <span class="num">' + wEnd.toLocaleDateString('en-GB') + '</span>' : 'بەسەرچووە'}</span>${inW && l.qty - l.ret > 0 ? `<button class="ghost sm" data-w="${i}">گۆڕین</button>` : ''}${l.exch ? `<span class="tag b">گۆڕدراوە <span class="num">${l.exch}</span></span>` : ''}</div></td></tr>`).join('')}</table></div>
-    ${left ? `<div class="row sp" style="margin-top:16px"><div>پارەی گەڕاوە: <b id="rSum" style="font-size:20px">${money(0)}</b>${sale.disc ? ' <span class="mute">(داشکاندنی پسولەکە لێی کەم دەکرێتەوە)</span>' : ''}</div><button class="btn red" id="rDo">گەڕاندنەوە</button></div>` : `<div class="empty"><b>هەموو کاڵاکانی ئەم پسولەیە گەڕاونەتەوە</b></div>`}`;
+    ${left ? `<div class="row sp" style="margin-top:16px"><div>پارەی گەڕاوە: <b id="rSum" style="font-size:20px">${money(0)}</b>${sale.disc ? ' <span class="mute">(داشکاندنی پسولەکە لێی کەم دەکرێتەوە)</span>' : ''}</div><div class="row" style="flex-wrap:wrap"><input class="inp" id="rWhy" placeholder="هۆکاری گەڕاندنەوە (پێویستە)" style="width:260px;max-width:100%" maxlength="200"><button class="btn red" id="rDo">گەڕاندنەوە</button></div></div>` : `<div class="empty"><b>هەموو کاڵاکانی ئەم پسولەیە گەڕاونەتەوە</b></div>`}`;
   $('#view').querySelectorAll('[data-w]').forEach(b => b.onclick = () => exchange(sale, sale.lines[+b.dataset.w]));
   if (!left) return;
   const qtys = () => { const q = {}; document.querySelectorAll('.rq').forEach(x => q[+x.dataset.i] = Math.floor(+x.value || 0)); return q; };
   const calc = () => Core.refundCalc(sale, qtys());
   document.querySelectorAll('.rq').forEach(x => x.oninput = () => { const r = calc(); $('#rSum').innerHTML = r ? money(r.refund) : '<span class="tag r">بڕەکە لە فرۆشراو زیاترە</span>'; });
-  $('#rDo').onclick = () => run('return', { no: sale.no, qty: qtys() }, () => { toast('گەڕایەوە؛ کۆگا نوێ کرایەوە'); V.returns(sale.no); shell(); });
+  $('#rDo').onclick = () => run('return', { no: sale.no, qty: qtys(), why: $('#rWhy').value.trim() }, () => { toast('گەڕایەوە؛ کۆگا نوێ کرایەوە'); V.returns(sale.no); shell(); });
 };
 
 function exchange(sale, l) {
@@ -990,6 +1026,40 @@ V.expenses = () => {
 };
 
 /* ---------- owner: dashboard, sales, log ---------- */
+/* daily sales as one smooth line; the best day is marked */
+function dayLine() {
+  const n = S.chartDays || 14, b = S.dashBranch, inB = x => b < 0 || x.branch === b, D = 864e5, start = Core.dayStart(S, new Date()) - (n - 1) * D, v = Array(n).fill(0);
+  const slot = t => Math.floor((Core.ms(t) - start) / D);
+  S.sales.forEach(x => { if (inB(x)) { const k = slot(x.t); if (k >= 0 && k < n) v[k] += x.total; } (x.rets || []).forEach(r => { if (inB(r)) { const k = slot(r.t); if (k >= 0 && k < n) v[k] -= r.amt; } }); if (!x.rets && x.refunded && inB(x)) { const k = slot(x.t); if (k >= 0 && k < n) v[k] -= x.refunded; } });
+  const mx = Math.max(...v, 1), top = Math.max(...v), best = top > 0 ? v.indexOf(top) : -1, days = v.filter(x => x > 0), avg = days.length ? Math.round(days.reduce((a, x) => a + x, 0) / days.length) : 0;
+  const W = 1000, H = 230, px = 26, pt = 30, pb = 34, X = i => W - px - i * (W - 2 * px) / (n - 1), Y = y => pt + (1 - Math.max(0, y) / mx) * (H - pt - pb);   // newest day on the left, like the rest of the page
+  const P = v.map((y, i) => [X(i), Y(y)]); let d = `M${P[0][0]},${P[0][1]}`;
+  for (let i = 0; i < n - 1; i++) { const p0 = P[i - 1] || P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || p2, c1 = [p1[0] + (p2[0] - p0[0]) / 6, Math.min(H - pb, Math.max(pt, p1[1] + (p2[1] - p0[1]) / 6))], c2 = [p2[0] - (p3[0] - p1[0]) / 6, Math.min(H - pb, Math.max(pt, p2[1] - (p3[1] - p1[1]) / 6))]; d += ` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`; }
+  const dt = i => new Date(start + i * D + 12 * 36e5), lab = i => { const x = dt(i); return x.getDate() + '/' + (x.getMonth() + 1); }, every = n <= 7 ? 1 : n <= 14 ? 2 : 5;
+  return `<div class="card pad linec"><div class="row sp" style="flex-wrap:wrap;gap:8px"><h2>فرۆشی ڕۆژانە</h2><div class="row" style="flex-wrap:wrap;gap:6px">${best >= 0 ? `<span class="tag g" id="bestDay">باشترین ڕۆژ: <span class="num">${lab(best)}</span> · <span class="num">${fmtMoney(top)}</span></span><span class="tag n">تێکڕای ڕۆژ: <span class="num">${fmtMoney(avg)}</span></span>` : ''}<div class="seg" style="padding:3px">${[7, 14, 30].map(k => `<button data-days="${k}" class="${n === k ? 'on' : ''}" style="padding:5px 12px"><span class="num">${k}</span> ڕۆژ</button>`).join('')}</div></div></div>
+    ${best < 0 ? '<div class="empty"><b>هێشتا فرۆشتن نییە</b>لەگەڵ یەکەم فرۆشتن هێڵەکە دەست پێدەکات</div>' : `<div class="lnwrap"><svg class="lnsvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9FF2F" stop-opacity=".32"/><stop offset="1" stop-color="#C9FF2F" stop-opacity="0"/></linearGradient><linearGradient id="ls" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#C9FF2F"/><stop offset="1" stop-color="#3FE0FF"/></linearGradient></defs>
+      ${[0, .5, 1].map(f => `<line x1="${px}" x2="${W - px}" y1="${Y(mx * f)}" y2="${Y(mx * f)}" class="gl"/>`).join('')}
+      <path class="ar" d="${d} L${X(n - 1)},${H - pb} L${X(0)},${H - pb} Z" fill="url(#lg)"/><path class="ln" d="${d}" pathLength="1" fill="none" stroke="url(#ls)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      <line x1="${X(best)}" x2="${X(best)}" y1="${Y(top)}" y2="${H - pb}" class="bl"/></svg>
+      <div class="lnx">${v.map((y, i) => `<span style="right:${(px + i * (W - 2 * px) / (n - 1)) / W * 100}%" class="${i === best ? 'bst' : ''}">${i % every === 0 || i === best || i === n - 1 ? lab(i) : ''}</span>`).join('')}<i class="bdot" style="right:${(px + best * (W - 2 * px) / (n - 1)) / W * 100}%;top:${Y(top) / H * 100}%"></i></div></div>`}</div>`;
+}
+/* what the manager should look at today: everything where money or stock could go missing */
+function watchCard(t0) {
+  const td = x => Core.ms(x.t) >= t0, F = [], staffNames = new Set(S.team.filter(u => u.role === 'staff').map(u => u.name));
+  S.sales.forEach(x => {
+    if (x.pay === 'fib' && !x.fibChecked && !x.legacy) F.push({ c: 'b', i: 'check', h: `FIB پشتڕاست نەکراوە: پسولەی <b class="num">#${x.no}</b> · ${money(x.total)} · ژمارەی مامەڵە <b class="num">${esc(x.fibRef) || '—'}</b>`, s: `${esc(x.by)} · ${esc(S.branches[x.branch])} · ${hm(x.t)}`, b: `<button class="btn green sm" data-fv="${x.no}">بینیم لە FIB</button>` });
+    (x.rets || []).forEach(r => { if (td(r)) F.push({ c: 'r', i: 'returns', h: `گەڕاندنەوەی ${money(r.amt)} لە پسولەی <b class="num">#${x.no}</b> — ${esc(r.why || '')}`, s: `${esc(r.by || '')} · ${esc(S.branches[r.branch])} · ${hm(r.t)}` }); });
+    if (td(x) && x.pay === 'debt') F.push({ c: 'a', i: 'customers', h: `فرۆشتن بە قەرز: ${money(x.total)} بۆ ${esc((cust(x.customer) || {}).name || '')} · پسولەی <b class="num">#${x.no}</b>`, s: `${esc(x.by)} · ${esc(S.branches[x.branch])} · ${hm(x.t)}` });
+    if (td(x) && !x.legacy && x.type === 'wholesale' && staffNames.has(x.by)) F.push({ c: 'a', i: 'pos', h: `کارمەند بە نرخی جوملە فرۆشتی: ${money(x.total)} · پسولەی <b class="num">#${x.no}</b>`, s: `${esc(x.by)} · ${esc(S.branches[x.branch])} · ${hm(x.t)}` });
+    if (td(x) && x.disc) F.push({ c: 'a', i: 'alert', h: `داشکاندنی ${money(x.disc)} لە پسولەی <b class="num">#${x.no}</b>`, s: `${esc(x.by)} · ${esc(S.branches[x.branch])} · ${hm(x.t)}` });
+  });
+  S.exchanges.forEach(x => { if (td(x)) F.push({ c: 'b', i: 'returns', h: `گۆڕینی زەمانەت: <span class="num">${x.qty}</span> دانە لە پسولەی <b class="num">#${x.no}</b> — ${esc(x.why)}`, s: `${esc(x.by)} · ${esc(S.branches[x.branch])} · ${hm(x.t)}` }); });
+  S.log.forEach(e => { if (td(e) && e.kind === 'stock' && /^کەمکردنەوەی/.test(e.text)) F.push({ c: 'r', i: 'items', h: e.text, s: `${esc(e.by)} · ${esc(S.branches[e.branch])} · ${hm(e.t)}` }); });
+  (S.closes || []).forEach(c => { if (td(c) && c.diff) F.push({ c: c.diff < 0 ? 'r' : 'a', i: 'expenses', h: `قاصە ${c.diff < 0 ? 'کەمە' : 'زیادە'} ${money(Math.abs(c.diff))} — ژمێردراو ${money(c.counted)}، دەبوو ${money(c.expected)} بێت`, s: `${esc(c.by)} · ${esc(S.branches[c.branch])} · ${hm(c.t)}` }); });
+  S.jards.forEach(j => { if (td(j)) { const miss = j.rows.reduce((a, r) => a + Math.max(0, -r.diff), 0); if (miss) F.push({ c: 'r', i: 'jard', h: `جەرد: <span class="num">${miss}</span> دانە کەمە`, s: `${esc(j.by)} · ${esc(S.branches[j.branch])} · ${hm(j.t)}` }); } });
+  return `<div class="card pad ${F.some(f => f.c === 'r') ? 'wait' : ''}" id="watch"><div class="row sp"><h2>چاودێریی ئەمڕۆ</h2>${F.length ? `<span class="tag ${F.some(f => f.c === 'r') ? 'r' : 'a'} num" id="watchN">${F.length}</span>` : ''}</div><p class="mute" style="font-size:13px;margin-bottom:4px">هەر شوێنێک کە پارە یان کاڵا دەتوانێت تێیدا ون ببێت.</p>
+    ${F.slice(0, 14).map(f => `<div class="item" style="align-items:center"><div class="dot ${f.c}">${ico(f.i, 17)}</div><div class="grow"><p>${f.h}</p><small>${f.s}</small></div>${f.b || ''}</div>`).join('') || '<div class="empty"><b>هیچ شتێک نییە بۆ سەیرکردن</b>گەڕاندنەوە، قەرز، داشکاندن، FIB، کەمیی قاصە و کەمیی جەرد لێرە دەردەکەون</div>'}</div>`;
+}
 function todayRets(t0) {
   const out = [];
   S.sales.forEach(x => {
@@ -1013,7 +1083,7 @@ V.dash = () => {
   // profit: only lines whose buying price is known
   let profit = 0, known = 0, unknown = 0;
   sales.forEach(s => { if (s.legacy || s.lines.some(l => l.cost == null)) { unknown++; return; } known++; profit += (s.total - s.refunded) - s.lines.reduce((a, l) => a + (l.qty - l.ret) * l.cost, 0); });
-  const pct = Math.min(1, net / S.target), R = 104, C = 2 * Math.PI * R, hrs = [...Array(14)].map((_, i) => i + 9), by = hrs.map(h => sales.filter(s => s.t.getHours() === h).reduce((a, s) => a + s.total, 0)), mx = Math.max(...by, 1), nowH = new Date().getHours();
+  const pct = Math.min(1, net / S.target), R = 104, C = 2 * Math.PI * R, hrs = [...Array(15)].map((_, i) => i + 9), by = hrs.map(h => sales.filter(s => s.t.getHours() === h).reduce((a, s) => a + s.total, 0)), mx = Math.max(...by, 1), nowH = new Date().getHours();
   const maxStaff = Math.max(...Object.values(staff).map(v => v.sum), 1);
   const brs = S.branches.map((nm, k) => { const ss = S.sales.filter(x => x.branch === k && today(x)); const by = k2 => ss.filter(x => x.pay === k2).reduce((a, x) => a + x.total, 0); return { nm, n: ss.length, cash: by('cash'), fib: by('fib'), debt: by('debt'), v: ss.reduce((a, x) => a + x.total, 0) - todayRets(t0).filter(r => r.branch === k).reduce((a, r) => a + r.amt, 0), ex: S.expenses.filter(e => e.branch === k && today(e)).reduce((a, e) => a + e.amt, 0), act: S.log.filter(e => e.branch === k && today(e)).length }; }), brMax = Math.max(...brs.map(x => x.v), 1);
   $('#view').innerHTML = `<div class="hero">
@@ -1030,12 +1100,16 @@ V.dash = () => {
       <div class="card pad"><div class="row sp"><h2>فرۆشتن بە پێی کاتژمێر</h2>${own ? `<span class="tag ${known ? 'g' : 'n'}" id="kProfit" title="قازانج تەنها بۆ بەڕێوەبەر دەردەکەوێت">قازانج: ${known ? `<span class="num">${fmtMoney(profit)}</span>${unknown ? ' (بەشێک)' : ''}` : 'نرخی کڕین دانەنراوە'}</span>` : ''}</div>
         <div class="bars">${hrs.map((h, i) => `<div><i class="${by[i] ? '' : 'z'} ${h === nowH ? 'now' : ''}" style="--i:${i};height:${Math.max(3, by[i] / mx * 100)}%" title="${fmtMoney(by[i])}"></i><s>${h}</s></div>`).join('')}</div></div></div></div>
     <div class="brs">${brs.map(x => `<div class="card pad"><div class="row sp"><h2>${esc(x.nm)}</h2><span class="tag ${x.n ? 'g' : 'n'}">${x.n ? `<span class="num">${x.n}</span> پسولە` : 'هێشتا فرۆشتن نییە'}</span></div><div class="row sp" style="margin-top:10px;align-items:flex-end"><div><small class="mute">فرۆشی ئەمڕۆ</small><div class="bv">${cu(x.v)}</div></div><div style="text-align:left"><small class="mute">مەسروف ${money(x.ex)}</small><br><small class="mute"><span class="num">${x.act}</span> جموجۆڵ</small></div></div><div class="duel"><div class="bar"><i style="width:${x.v / brMax * 100}%"></i></div></div><div class="row" style="margin-top:12px;flex-wrap:wrap;gap:6px"><span class="tag g">کاش ${money(x.cash)}</span><span class="tag b">FIB ${money(x.fib)}</span><span class="tag a">قەرز ${money(x.debt)}</span></div></div>`).join('')}</div>
+    ${dayLine()}
     <div class="two"><div style="display:grid;gap:18px">
+      ${own ? watchCard(t0) : ''}
       ${own ? `<div class="card pad ${wait.length ? 'wait' : ''}"><div class="row sp"><h2>چاوەڕوانی ڕەزامەندیی تۆ</h2>${wait.length ? `<span class="tag a num">${wait.length}</span>` : ''}</div>${wait.map(a => `<div class="item"><div class="dot a">${ico('alert', 17)}</div><div class="grow"><p><b>${esc(a.by)}</b> داوای داشکاندنی ${money(a.amt)} دەکات لەسەر ${money(a.sub)}</p><small>${a.why ? esc(a.why) + ' · ' : ''}${esc(S.branches[a.branch])} · ${hm(a.t)}</small></div><div class="row"><button class="btn green sm" data-ok="${a.id}">ڕازیم</button><button class="ghost sm" data-no="${a.id}">نا</button></div></div>`).join('') || '<div class="empty"><b>هیچ داواکارییەک نییە</b>داواکاریی داشکاندنی کارمەندەکان لێرە دەردەکەوێت</div>'}</div>` : ''}
       <div class="card pad"><h2>دوایین کارەکان</h2>${S.log.filter(inB).slice(0, 7).map(feedRow).join('') || '<div class="empty"><b>هێشتا هیچ شتێک ڕووی نەداوە</b></div>'}</div></div>
     <div style="display:grid;gap:18px">
       <div class="card pad"><h2>فرۆشی کارمەندەکان</h2><div class="duel">${Object.entries(staff).map(([n, v]) => `<div><div class="row sp"><span class="row"><span class="av" style="width:30px;height:30px;border-radius:9px;font-size:13px">${esc(n[0].toUpperCase())}</span><b class="en">${esc(n)}</b><small class="mute"><span class="num">${v.n}</span> پسولە</small></span><b class="num">${fmtMoney(v.sum)}</b></div><div class="bar" style="margin-top:8px"><i style="width:${v.sum / maxStaff * 100}%"></i></div></div>`).join('') || '<div class="empty">هێشتا فرۆشتن نییە</div>'}</div></div>
       <div class="card pad"><h2>کاڵای کەمبوو</h2>${low.map(i => `<div class="item" style="align-items:center"><div class="grow"><p class="en" style="text-align:left;font-weight:600">${esc(i.name)}</p></div>${i.s.map((n, k) => b < 0 || b === k ? `<span class="row" style="gap:6px"><small>${esc(S.branches[k])}</small>${bat(n)}</span>` : '').join('')}</div>`).join('') || '<div class="empty">هەموو کاڵاکان بە بڕی باش هەن</div>'}</div></div></div>`;
+  $('#view').querySelectorAll('[data-days]').forEach(x => x.onclick = () => { S.chartDays = +x.dataset.days; render(true); });
+  $('#view').querySelectorAll('[data-fv]').forEach(x => x.onclick = () => run('fibVerify', { no: +x.dataset.fv }, () => { toast('پشتڕاست کرایەوە'); render(); }));
   const arc = $('#arc'); if (MO()) requestAnimationFrame(() => requestAnimationFrame(() => arc.style.strokeDashoffset = arc.dataset.off)); else arc.style.strokeDashoffset = arc.dataset.off;
   $('#tgt').onclick = () => { if (!own) return toast('تەنها بەڕێوەبەر ئامانج دەگۆڕێت', 1); modal(`<h2>ئامانجی ڕۆژانە</h2><label class="f">بڕ بە ${CUR()}<input class="inp num" id="tA" type="text" inputmode="decimal" min="1" step="1" value="${amtOut(S.target)}"></label><div class="acts"><button class="btn volt" id="tOk">هەڵگرتن</button><button class="ghost" id="tNo">پاشگەزبوونەوە</button></div>`); $('#tNo').onclick = closeModal; $('#tOk').onclick = () => run('setTarget', { target: toC($('#tA').value) }, () => { closeModal(); render(true); }); };
   const decide = (id, ok) => run('decideRequest', { id, ok }, () => { render(); $('#arc').style.strokeDashoffset = $('#arc').dataset.off; });
@@ -1135,11 +1209,13 @@ V.settings = () => {
     <div class="card pad"><h2>نرخی دۆلاری ئەمڕۆ</h2><p class="mute" style="margin:4px 0 14px">هەر ڕۆژێک نرخ گۆڕا، لێرە بیگۆڕە. نرخی کاڵاکان بە دۆلار وەک خۆیان دەمێننەوە و بە دینار بەم نرخە هەژمار دەکرێن.</p>
       <div class="row raterow"><b class="num" style="font-size:22px">100$ =</b><input class="inp num grow" id="rate100" type="text" inputmode="decimal" min="1" step="250" value="${S.rate * 100}" style="font-size:20px;font-weight:800"><b>دینار</b><button class="btn volt" id="rateOk">هەڵگرتن</button></div>
       <p class="mute" style="margin-top:10px;font-size:13px">بڕی دینار بۆ نزیکترین <span class="num">250</span> دینار خڕ دەکرێتەوە، چونکە بچووکترین پارە ئەوەیە.</p></div>
+    <div class="card pad"><h2>ئامانجی فرۆشی ڕۆژانە</h2><p class="mute" style="margin:4px 0 14px">بازنەی داشبۆرد بەم بڕە پڕ دەبێتەوە. هەر کاتێک بتەوێت بیگۆڕە.</p><div class="row raterow"><input class="inp num grow" id="tgA" type="text" inputmode="decimal" value="${amtOut(S.target)}" style="font-size:20px;font-weight:800"><b>${CUR()}</b><button class="btn volt" id="tgOk">هەڵگرتن</button></div></div>
     ${REMOTE ? '' : '<div class="card pad"><h2>داتای ئەم نموونەیە</h2><p class="mute" style="margin:4px 0 14px">ئەم نموونەیە هەموو شتێک تەنها لەسەر ئەم ئامێرە هەڵدەگرێت. بە سڕینەوە دەگەڕێتەوە سەرەتا.</p><button class="ghost" id="wipe">سڕینەوە و دەستپێکردنەوە</button></div>'}</div>
     <div style="display:grid;gap:18px"><div class="card pad"><h2>نموونە بەم نرخە</h2>${ex.map(i => `<div class="item" style="align-items:center"><div class="grow"><p class="en" style="text-align:left;font-weight:600">${esc(i.name)}</p></div><span class="num mute">$${(i.r / 100).toFixed(2)}</span><b class="num" style="min-width:110px;text-align:left">${iqd(i.r).toLocaleString('en-US')} د.ع</b></div>`).join('')}</div>
     <div class="card pad"><h2>مێژووی نرخ</h2>${S.rates.map(r => `<div class="item"><div class="dot a">${ico('gear', 17)}</div><div class="grow"><p><span class="num">100$ = ${(r.rate * 100).toLocaleString('en-US')} د.ع</span></p><small>${esc(r.by)} · <span class="num">${r.t.toLocaleDateString('en-GB')}</span> ${hm(r.t)}</small></div></div>`).join('')}</div></div></div>`;
   $('#view').querySelectorAll('[data-cur]').forEach(b => b.onclick = () => { if (S.cur === b.dataset.cur) return; run('setCurrency', { cur: b.dataset.cur }, () => render(true)); });
   if ($('#wipe')) $('#wipe').onclick = () => { modal(`<h2>سڕینەوەی داتای نموونە</h2><p class="mute">هەموو فرۆشتن، ئەکاونت و پاسۆردەکانی ئەم نموونەیە دەسڕێنەوە.</p><div class="acts"><button class="btn red" id="wY">بەڵێ، بیسڕەوە</button><button class="ghost" id="wN">نەخێر</button></div>`); $('#wN').onclick = closeModal; $('#wY').onclick = () => { window.__noSave = true; try { localStorage.removeItem(KEY); } catch (e) {} location.reload(); }; };
+  $('#tgOk').onclick = () => run('setTarget', { target: toC($('#tgA').value) }, () => { toast('ئامانج هەڵگیرا'); render(true); });
   $('#rateOk').onclick = () => run('setRate', { v: pn($('#rate100').value, true) }, () => { toast('هەڵگیرا'); render(true); });
 };
 const moves = b => Core.moves(S, b, new Date()); // today's movement per item in one branch
@@ -1165,6 +1241,7 @@ function jardOwner() { // the manager only watches: who counted, when, which bra
           <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px">${x.dn ? `<span class="tag r"><span class="num">${x.dn}</span> جیاوازی</span>${x.miss ? `<span class="tag r">کەمە <span class="num">${x.miss}</span> دانە</span>` : ''}${x.over ? `<span class="tag a">زیادە <span class="num">${x.over}</span> دانە</span>` : ''}` : '<span class="tag g">هەمووی ڕاستە</span>'}${j.applied ? '<span class="tag b">کۆگا ڕاست کراوەتەوە</span>' : ''}</div></div>
           <button class="ghost sm" data-jv="${j.id}">وردەکاری</button></div>`; }).join('') || '<div class="empty"><b>هێشتا هیچ جەردێک نەنێردراوە</b>کاتێک کارمەندێک جەرد دەنێرێت، لێرە دەردەکەوێت و ئاگەداریت بۆ دێت</div>'}</div>
     <div class="card pad"><h2>کێ ئەمڕۆ جەردی کرد؟</h2>${people.map(u => { const mine = today.filter(j => j.by === u.name), l = mine[0]; return `<div class="item" style="align-items:center"><div class="av" style="width:34px;height:34px;border-radius:10px;font-size:14px">${esc(u.name[0].toUpperCase())}</div><div class="grow"><p><b>${esc(u.name)}</b></p><small>${ROLE[u.role]} · ${u.branch < 0 ? 'هەموو لقەکان' : esc(S.branches[u.branch])}</small></div>${l ? `<span class="tag g" data-dn="${esc(u.name)}">${hm(l.t)} · <span class="num">${mine.length}</span> جەرد</span>` : `<span class="tag r" data-nc="${esc(u.name)}">نەیکردووە</span>`}</div>`; }).join('')}</div></div>`;
+  $('#view').insertAdjacentHTML('beforeend', `<div class="card pad" style="margin-top:18px" id="closes"><h2>داخستنی قاصەکان</h2><p class="mute" style="font-size:13px;margin-bottom:6px">کارمەند تەنها ئەوە دەنووسێت کە ژماردوویەتی؛ نازانێت سیستەم چەندی چاوەڕێ دەکرد.</p>${(S.closes || []).slice(0, 30).map(c => `<div class="item" style="align-items:center"><div class="dot ${c.diff ? (c.diff < 0 ? 'r' : 'a') : 'g'}">${ico('expenses', 17)}</div><div class="grow"><p><b>${esc(c.by)}</b> <span class="tag b">${esc(S.branches[c.branch])}</span> ژمێردراو <b class="num">${fmtMoney(c.counted)}</b> · دەبوو <span class="num">${fmtMoney(c.expected)}</span> بێت</p><small><span class="num">${c.t.toLocaleDateString('en-GB')}</span> · کاتژمێر ${hm(c.t)}${c.note ? ' · ' + esc(c.note) : ''}</small></div><span class="tag ${c.diff ? (c.diff < 0 ? 'r' : 'a') : 'g'}">${c.diff ? (c.diff < 0 ? 'کەمە ' : 'زیادە ') + `<span class="num">${fmtMoney(Math.abs(c.diff))}</span>` : 'ڕاستە'}</span></div>`).join('') || '<div class="empty"><b>هێشتا هیچ قاصەیەک دانەخراوە</b></div>'}</div>`);
   $('#view').querySelectorAll('[data-jv]').forEach(x => x.onclick = () => jardView(S.jards.find(j => j.id === +x.dataset.jv)));
 }
 V.jard = () => {
@@ -1175,9 +1252,12 @@ V.jard = () => {
   const moved = S.items.filter(i => mv[i.id]), f = S.jardFilter || (moved.length ? 'moved' : 'all'), q = S.jardQ.toLowerCase();
   const list = (f === 'moved' ? moved : S.items.filter(i => i.s[b] > 0 || mv[i.id])).filter(i => !q || i.name.toLowerCase().includes(q) || i.bc.includes(q));
   const done = Object.keys(cnt).length, diffs = Object.entries(cnt).filter(([id, n]) => n !== item(+id).s[b]).length;
-  const subs = S.jards.filter(j => lvl() > 1 || j.by === me().name);
+  const subs = S.jards.filter(j => lvl() > 1 || j.by === me().name), d0 = Core.dayStart(S, new Date()), myCloses = (S.closes || []).filter(c => c.by === S.me && c.branch === b && Core.ms(c.t) >= d0);
   $('#view').innerHTML = `<div class="kgrid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
       <div class="card kpi"><small>ئەمڕۆ فرۆشراو</small>${cuInt(tot.sold, 'jSold')}</div><div class="card kpi"><small>گەڕاوە</small>${cuInt(tot.ret, 'jRet')}</div><div class="card kpi"><small>گۆڕاو (زەمانەت)</small>${cuInt(tot.exch, 'jExch')}</div><div class="card kpi"><small>خراپ</small>${cuInt(faulty, 'jBad')}</div><div class="card kpi"><small>ماوە لە ${esc(S.branches[b])}</small>${cuInt(left, 'jLeft')}</div></div>
+    <div class="card pad" style="margin-bottom:14px"><h2>داخستنی قاصە — ${esc(S.branches[b])}</h2><p class="mute" style="font-size:13px;margin:2px 0 12px">پارەی کاشی ناو قاصە بژمێرە و بینووسە. بەڕێوەبەر بەراوردی دەکات لەگەڵ فرۆشتنەکان.</p>
+      <div class="row raterow"><input class="inp num grow" id="dcA" type="text" inputmode="decimal" placeholder="بڕی کاشی ژمێردراو" style="font-size:18px;font-weight:800"><b>${CUR()}</b><input class="inp grow" id="dcN" placeholder="تێبینی (ئارەزوومەندانە)" maxlength="200"><button class="btn volt" id="dcOk">ناردن</button></div>
+      ${myCloses.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:10px">${myCloses.map(c => `<span class="tag g">${hm(c.t)} · نێردرا: <span class="num">${fmtMoney(c.counted)}</span></span>`).join('')}</div>` : ''}</div>
     <div class="card pad" style="margin-bottom:14px"><div class="row sp" style="flex-wrap:wrap"><div><h2>ژماردنی ئەمڕۆ — ${esc(S.branches[b])}</h2><p class="mute" style="font-size:13px">تەنها ئەوە بنووسە کە بە دەست ژماردووتە. فرۆشراو، گەڕاوە و گۆڕاو سیستەمەکە خۆی دەیزانێت.</p></div>
         <div class="chips" style="margin:0"><button class="chip ${f === 'moved' ? 'on' : ''}" data-jf="moved">جووڵاوەکانی ئەمڕۆ <span class="num">${moved.length}</span></button><button class="chip ${f === 'all' ? 'on' : ''}" data-jf="all">هەموو کاڵاکان</button></div></div>
       <input class="inp" id="jQ" placeholder="گەڕان بە ناو یان بارکۆد" value="${esc(S.jardQ)}" style="margin:12px 0 4px">
@@ -1195,6 +1275,7 @@ V.jard = () => {
   $('#view').querySelectorAll('[data-jf]').forEach(x => x.onclick = () => { S.jardFilter = x.dataset.jf; V.jard(); });
   $('#jQ').onchange = () => { S.jardQ = $('#jQ').value.trim(); V.jard(); };
   $('#view').querySelectorAll('[data-jv]').forEach(x => x.onclick = () => jardView(S.jards.find(j => j.id === +x.dataset.jv)));
+  $('#dcOk').onclick = () => { const raw = $('#dcA').value.trim(); if (raw === '') return toast('بڕی کاشی ژمێردراو بنووسە', 1); run('drawerClose', { branch: b, counted: toC(raw), note: $('#dcN').value.trim() }, () => { toast('قاصەکە نێردرا بۆ بەڕێوەبەر'); V.jard(); }); };
   $('#jSend').onclick = () => run('jardSubmit', { branch: b, counts: cnt, note: $('#jNote').value.trim() }, () => { S.count[b] = {}; toast('جەردەکە نێردرا'); V.jard(); });
 };
 function jardView(j) {

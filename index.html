@@ -452,6 +452,26 @@ td{white-space:nowrap}td.mute{white-space:normal}
   .raterow{flex-wrap:wrap}.raterow .inp{min-width:0;flex:1 1 140px}.raterow .btn{flex:1 1 100%}
   .kgrid{grid-template-columns:1fr 1fr}
 }
+
+/* daily sales line */
+.linec{margin-bottom:18px;overflow:hidden}
+.lnwrap{position:relative;margin-top:10px}
+.lnsvg{display:block;width:100%;height:230px}
+.lnsvg .gl{stroke:rgba(255,255,255,.06);stroke-width:1;vector-effect:non-scaling-stroke}
+.lnsvg .bl{stroke:var(--volt);stroke-width:1.5;stroke-dasharray:4 5;opacity:.55;vector-effect:non-scaling-stroke}
+.lnsvg .ln{stroke-dasharray:1;stroke-dashoffset:0;filter:drop-shadow(0 6px 14px rgba(201,255,47,.35))}
+.enter .lnsvg .ln{animation:drawln 1.7s var(--ease) both .25s}
+.enter .lnsvg .ar{animation:fade 1.2s ease both .9s}
+@keyframes drawln{from{stroke-dashoffset:1}}
+.lnx{position:absolute;inset:0;pointer-events:none}
+.lnx span{position:absolute;bottom:6px;transform:translateX(50%);font-family:Sora;font-size:11px;color:var(--mute);white-space:nowrap}
+.lnx span.bst{color:var(--volt);font-weight:800}
+.lnx .bdot{position:absolute;width:14px;height:14px;margin:-7px -7px 0 0;border-radius:50%;background:var(--volt);box-shadow:0 0 0 5px rgba(201,255,47,.18),0 0 22px var(--volt)}
+.enter .lnx .bdot{animation:pop .6s var(--spring) both 1.5s}
+@media (max-width:760px){.lnsvg{height:180px}.lnx span{font-size:10px}}
+
+b.num,span.num{white-space:nowrap}
+@media (max-width:760px){#dcA,#dcN{flex:1 1 100%}.toast{bottom:calc(112px + env(safe-area-inset-bottom))}}
 </style>
 </head>
 <body>
@@ -485,6 +505,6 @@ td{white-space:nowrap}td.mute{white-space:normal}
 
 
 
-<script src="app.js?v=33cade5cf9ba"></script>
+<script src="app.js?v=19111f35abc2"></script>
 </body>
 </html>
