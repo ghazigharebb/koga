@@ -516,7 +516,7 @@ td{white-space:nowrap}td.mute{white-space:normal}
     return {
       items: (seedItems || []).map(x => ({ ...x, r: cents(x.r), w: cents(x.w), s: [...x.s] })),
       customers: (seedCustomers || []).map(x => ({ ...x, debt: cents(x.debt) })),
-      branches: ['لقی 1', 'لقی 2'],
+      branches: ['لقی بازاڕ', 'لقی 60م'],
       team: [{ name: 'وەستا غەریب', role: 'owner', branch: -1, pw: null }, { name: 'سەرپەرشت', role: 'sup', branch: -1, pct: null, salary: null, salaryCur: 'USD', pw: null }, { name: 'qara', role: 'staff', branch: 0, pct: null, salary: null, salaryCur: 'USD', pw: null }],
       ledger: [], notes: [], cur: 'USD', rate: 1690, rates: [{ t: now == null ? new Date(0) : now, rate: 1690, by: 'وەستا غەریب' }], jards: [],
       target: 100000, sales: [], expenses: [], payments: [], purchases: [], exchanges: [], approvals: [], log: [], unread: {}, nextNo: 20001, nextId: 200, tz: 180
