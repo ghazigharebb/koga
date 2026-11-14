@@ -472,6 +472,10 @@ td{white-space:nowrap}td.mute{white-space:normal}
 
 b.num,span.num{white-space:nowrap}
 @media (max-width:760px){#dcA,#dcN{flex:1 1 100%}.toast{bottom:calc(112px + env(safe-area-inset-bottom))}}
+/* the message box is fully gone when there is no message (on every screen size) */
+.toast{opacity:0;visibility:hidden;pointer-events:none;transition:transform .5s var(--spring),opacity .25s ease,visibility 0s linear .5s}
+.toast.on{opacity:1;visibility:visible;pointer-events:auto;transition:transform .5s var(--spring),opacity .2s ease,visibility 0s}
+.toast:empty{display:none}
 </style>
 </head>
 <body>
