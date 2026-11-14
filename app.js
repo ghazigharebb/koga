@@ -458,6 +458,7 @@ const IC = {
   log: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
   jard: 'M9 4h6v3H9zM9 5H5v16h14V5h-4M9 13l2 2 4-4',
   gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12a7 7 0 0 0-.1-1.3l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2.3-1.3L14 3h-4l-.3 2.5a7 7 0 0 0-2.3 1.3l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2.6l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2.3 1.3L10 21h4l.3-2.5a7 7 0 0 0 2.3-1.3l2.3 1 2-3.4-2-1.5c.1-.4.1-.9.1-1.3z',
+  cash: 'M3 7h18v10H3zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 10v.01M17.5 14v.01',
   trophy: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3',
   check: 'M5 12l5 5 9-10', x: 'M6 6l12 12M18 6 6 18', plus: 'M12 5v14M5 12h14',
   alert: 'M12 8v5M12 17h.01M10.3 3.6 2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z',
@@ -643,7 +644,7 @@ $('#drawerX').onclick = () => $('#drawer').classList.remove('on');
 const NAV = [ // [view, title, icon, minimum level]
   ['dash', 'داشبۆرد', 'dash', 2], ['pos', 'فرۆشتن', 'pos', 1], ['returns', 'گەڕاندنەوە', 'returns', 2],
   ['items', 'کاڵا و کۆگا', 'items', 2], ['customers', 'کڕیار و قەرز', 'customers', 1, 'کڕیار'], ['expenses', 'مەسروفات', 'expenses', 2],
-  ['sales', 'پسولەکان', 'sales', 2], ['jard', 'جەردی ڕۆژانە', 'jard', 1, 'جەرد'], ['perf', 'ڕکابەری و مووچە', 'trophy', 1, 'ڕکابەری'], ['team', 'ئەکاونتەکان', 'customers', 3], ['log', 'تۆماری کارەکان', 'log', 3], ['settings', 'ڕێکخستنەکان', 'gear', 3]
+  ['sales', 'پسولەکان', 'sales', 2], ['jard', 'جەردی ڕۆژانە', 'jard', 1, 'جەرد'], ['perf', 'مووچە', 'cash', 1], ['team', 'ئەکاونتەکان', 'customers', 3], ['log', 'تۆماری کارەکان', 'log', 3], ['settings', 'ڕێکخستنەکان', 'gear', 3]
 ];
 const navItems = () => NAV.filter(n => lvl() >= n[3]);
 function acctBox() {
