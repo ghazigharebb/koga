@@ -634,11 +634,20 @@ const feedRow = (e, i = 0) => `<div class="item" style="--i:${i}"><div class="do
 const myFeed = () => S.log.filter(e => e.toUser ? (isOwner() || e.toUser === S.me) : (e.to === 'all' || lvl() > 1));
 function drawBell() { const n = S.unread[S.me] || 0, b = $('#bellN'); if (b.textContent !== String(n)) { b.classList.remove('show'); void b.offsetWidth; } b.textContent = n; b.classList.toggle('show', n > 0); }
 function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'toast on' + (err ? ' err' : ''); clearTimeout(toast.h); toast.h = setTimeout(() => t.className = 'toast', 2600); }
-function modal(html) { $('#sheet').innerHTML = html; $('#modal').classList.add('on'); const f = $('#sheet input,#sheet select'); if (f) f.focus(); }
-function closeModal() { $('#modal').classList.remove('on'); }
+const DESK = () => matchMedia('(hover:hover) and (pointer:fine)').matches && innerWidth > 760;   // a computer with a mouse
+const autoFocus = el => { if (el && DESK()) el.focus(); };
+/* while a sheet is open the page behind it must not move (phones scroll the page under a finger otherwise) */
+let lockY = 0;
+function lockPage(on) {
+  const b = document.body, h = document.documentElement;
+  if (on && !h.classList.contains('locked')) { lockY = scrollY; h.classList.add('locked'); b.style.top = -lockY + 'px'; }
+  else if (!on && h.classList.contains('locked')) { h.classList.remove('locked'); b.style.top = ''; scrollTo(0, lockY); }
+}
+function modal(html) { $('#sheet').innerHTML = html; $('#modal').classList.add('on'); $('#sheet').scrollTop = 0; lockPage(true); autoFocus($('#sheet input:not([type=hidden]),#sheet textarea')); }
+function closeModal() { $('#modal').classList.remove('on'); if (!$('#drawer').classList.contains('on')) lockPage(false); }
 $('#modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
-$('#bell').onclick = () => { $('#feed').innerHTML = myFeed().map(feedRow).join('') || `<div class="empty"><b>هیچ ئاگەدارییەک نییە</b>هەر فرۆشتن و گەڕاندنەوەیەک لێرە دەردەکەوێت</div>`; $('#drawer').classList.add('on'); if (S.unread[S.me]) quiet('markRead'); drawBell(); };
-$('#drawerX').onclick = () => $('#drawer').classList.remove('on');
+$('#bell').onclick = () => { $('#feed').innerHTML = myFeed().map(feedRow).join('') || `<div class="empty"><b>هیچ ئاگەدارییەک نییە</b>هەر فرۆشتن و گەڕاندنەوەیەک لێرە دەردەکەوێت</div>`; $('#drawer').classList.add('on'); lockPage(true); if (S.unread[S.me]) quiet('markRead'); drawBell(); };
+$('#drawerX').onclick = () => { $('#drawer').classList.remove('on'); if (!$('#modal').classList.contains('on')) lockPage(false); };
 
 /* ---------- shell ---------- */
 const NAV = [ // [view, title, icon, minimum level]
@@ -724,6 +733,7 @@ function enter(name) { S.session = S.me = name; if (me().branch >= 0) S.branch =
 function logout() { if (REMOTE) { if (net.token) call('logout').catch(() => {}); dropSession(); return showLogin(); } S.session = S.me = null; save(); showLogin(); }
 const REVEAL = '#view>*:not(.pos):not(.hero):not(.two):not(.kgrid):not(.kpis):not(.brs):not(.cartbar),.pos>*,.hero>*,.kgrid>*,.kpis>*,.brs>*,.two>*>.card,.two>.card';
 function render(enter) {
+  if (!$('#modal').classList.contains('on') && !$('#drawer').classList.contains('on')) lockPage(false);
   shell(); drawView(); save();
   if (!enter) return;
   const vw = $('#view');
@@ -735,7 +745,7 @@ function render(enter) {
 }
 setInterval(() => { const c = $('#clock'); if (c) c.textContent = new Date().toTimeString().slice(0, 8); }, 1000);
 document.addEventListener('mousemove', e => { const p = e.target.closest && e.target.closest('.prod'); if (!p) return; const r = p.getBoundingClientRect(); p.style.setProperty('--mx', (e.clientX - r.left) + 'px'); p.style.setProperty('--my', (e.clientY - r.top) + 'px'); });
-document.addEventListener('keydown', e => { if (e.key === 'F2') { e.preventDefault(); if (S.view !== 'pos') go('pos'); $('#q').focus(); } if (e.key === 'Escape') { closeModal(); $('#drawer').classList.remove('on'); } });
+document.addEventListener('keydown', e => { if (e.key === 'F2') { e.preventDefault(); if (S.view !== 'pos') go('pos'); $('#q').focus(); } if (e.key === 'Escape') { $('#drawer').classList.remove('on'); closeModal(); } });
 
 /* ---------- POS ---------- */
 const V = {};
@@ -746,12 +756,12 @@ V.pos = () => {
     <div class="chips">${cats.map(c => `<button class="chip ${S.cat === c ? 'on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
     <div class="grid" id="grid"></div></div>
     <div class="card cart" id="cart"></div></div><button class="cartbar" id="cartbar"></button>`;
-  $('#cartbar').onclick = () => $('#cart').classList.add('open');
+  $('#cartbar').onclick = () => { $('#cart').classList.add('open'); lockPage(true); };
   const q = $('#q');
   q.oninput = () => { S.q = q.value; $('#view').classList.remove('enter'); drawGrid(); };
   q.onkeydown = e => { if (e.key !== 'Enter') return; const hit = S.items.filter(i => i.bc && i.bc === S.q.trim()); if (hit.length === 1) { addLine(hit[0].id); S.q = q.value = ''; drawGrid(); } else if (hit.length > 1) toast('ئەم بارکۆدە بۆ ' + hit.length + ' کاڵا بەکارهاتووە، یەکێکیان هەڵبژێرە', 1); else toast('هیچ کاڵایەک بەم بارکۆدە نییە', 1); };
   document.querySelectorAll('.chip').forEach(c => c.onclick = () => { S.cat = c.dataset.c; V.pos(); });
-  drawGrid(); drawCart(); q.focus();
+  drawGrid(); drawCart(); autoFocus(q);
 };
 function drawGrid() {
   const t = S.q.trim().toLowerCase();
@@ -806,7 +816,7 @@ function drawCart() {
       <button class="btn volt big" id="sellBtn" ${!c.lines.length || waiting ? 'disabled' : ''}>${waiting ? 'چاوەڕوانی ڕەزامەندی…' : 'فرۆشتن'}</button></div>`;
   const C = $('#cart'), tb = $('#totB'), prev = S.prevTotal || 0; S.lastAdd = null;
   if (prev !== total) { countUp(tb, total, 'money', prev, 420); if (MO()) tb.classList.add('flash'); } S.prevTotal = total;
-  $('#cartX').onclick = () => C.classList.remove('open');
+  $('#cartX').onclick = () => { C.classList.remove('open'); lockPage(false); };
   const n = c.lines.reduce((a, l) => a + l.qty, 0); $('#cartbar').innerHTML = `<span>سەبەتە · <span class="num">${n}</span> دانە</span><b class="num">${fmtMoney(total)}</b>`; $('#cartbar').style.display = n ? '' : 'none';
   C.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { if (c.type === b.dataset.t) return; voidReq(); c.type = b.dataset.t; const bad = c.lines.filter(l => priceOf(item(l.id)) <= 0); if (bad.length) { c.lines = c.lines.filter(l => !bad.includes(l)); toast('کاڵای بێ نرخی ' + TYPES[c.type] + ' لابرا', 1); } drawGrid(); drawCart(); });
   C.querySelectorAll('[data-p]').forEach(b => b.onclick = () => addLine(+b.dataset.p, 1));
@@ -1079,19 +1089,20 @@ V.dash = () => {
   const fibNet = sales.filter(s => s.pay === 'fib').reduce((a, s) => a + s.total, 0) - rets.reduce((a, r) => a + r.fib, 0) + pays.filter(p => p.method === 'fib').reduce((a, p) => a + p.amt, 0);
   const cashOut = rets.reduce((a, r) => a + r.cash, 0) + exps.reduce((a, e) => a + e.amt, 0);
   const wait = own ? S.approvals.filter(a => a.status === 'wait') : [];
-  const staff = {}; sales.forEach(s => { staff[s.by] = staff[s.by] || { n: 0, sum: 0 }; staff[s.by].n++; staff[s.by].sum += s.total - s.refunded; });
+  const pcs = list => list.reduce((a, x) => a + (x.lines || []).reduce((b, l) => b + l.qty - l.ret, 0), 0), units = pcs(sales);
+  const staff = {}; sales.forEach(s => { staff[s.by] = staff[s.by] || { n: 0, sum: 0, u: 0 }; staff[s.by].n++; staff[s.by].sum += s.total - s.refunded; staff[s.by].u += pcs([s]); });
   const low = S.items.filter(i => (b < 0 ? Math.min(...i.s) : i.s[b]) <= 5).slice(0, 7);
   // profit: only lines whose buying price is known
   let profit = 0, known = 0, unknown = 0;
   sales.forEach(s => { if (s.legacy || s.lines.some(l => l.cost == null)) { unknown++; return; } known++; profit += (s.total - s.refunded) - s.lines.reduce((a, l) => a + (l.qty - l.ret) * l.cost, 0); });
   const pct = Math.min(1, net / S.target), R = 104, C = 2 * Math.PI * R, hrs = [...Array(15)].map((_, i) => i + 9), by = hrs.map(h => sales.filter(s => s.t.getHours() === h).reduce((a, s) => a + s.total, 0)), mx = Math.max(...by, 1), nowH = new Date().getHours();
   const maxStaff = Math.max(...Object.values(staff).map(v => v.sum), 1);
-  const brs = S.branches.map((nm, k) => { const ss = S.sales.filter(x => x.branch === k && today(x)); const by = k2 => ss.filter(x => x.pay === k2).reduce((a, x) => a + x.total, 0); return { nm, n: ss.length, cash: by('cash'), fib: by('fib'), debt: by('debt'), v: ss.reduce((a, x) => a + x.total, 0) - todayRets(t0).filter(r => r.branch === k).reduce((a, r) => a + r.amt, 0), ex: S.expenses.filter(e => e.branch === k && today(e)).reduce((a, e) => a + e.amt, 0), act: S.log.filter(e => e.branch === k && today(e)).length }; }), brMax = Math.max(...brs.map(x => x.v), 1);
+  const brs = S.branches.map((nm, k) => { const ss = S.sales.filter(x => x.branch === k && today(x)); const by = k2 => ss.filter(x => x.pay === k2).reduce((a, x) => a + x.total, 0); return { k, u: pcs(ss), nm, n: ss.length, cash: by('cash'), fib: by('fib'), debt: by('debt'), v: ss.reduce((a, x) => a + x.total, 0) - todayRets(t0).filter(r => r.branch === k).reduce((a, r) => a + r.amt, 0), ex: S.expenses.filter(e => e.branch === k && today(e)).reduce((a, e) => a + e.amt, 0), act: S.log.filter(e => e.branch === k && today(e)).length }; }), brMax = Math.max(...brs.map(x => x.v), 1);
   $('#view').innerHTML = `<div class="hero">
     <div class="card ringc"><div class="ring"><svg viewBox="0 0 250 250" width="250" height="250"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3FE0FF"/><stop offset="1" stop-color="#C9FF2F"/></linearGradient></defs>
         <circle class="ticks" cx="125" cy="125" r="121" fill="none" stroke-width="5" stroke-dasharray="1.5 11.17"/><circle class="trk" cx="125" cy="125" r="${R}" fill="none" stroke-width="13"/>
         <circle class="arc" id="arc" cx="125" cy="125" r="${R}" fill="none" stroke-width="13" stroke-dasharray="${C}" stroke-dashoffset="${C}" data-off="${C * (1 - pct)}"/></svg>
-      <div class="mid"><small>فرۆشی ئەمڕۆ</small>${cu(net, 'kSold')}<span><span class="num">${Math.round(net / S.target * 100)}%</span> لە ئامانج</span></div></div>
+      <div class="mid"><small>فرۆشی ئەمڕۆ</small>${cu(net, 'kSold')}<em class="units"><span class="num" id="kUnits">${units.toLocaleString('en-US')}</span> دانە فرۆشراوە</em><span><span class="num">${Math.round(net / S.target * 100)}%</span> لە ئامانج</span></div></div>
       <button class="ghost sm" id="tgt" style="margin-top:10px">ئامانجی ڕۆژانە: <span class="num">${fmtMoney(S.target)}</span></button></div>
     <div><div class="kgrid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         <div class="card kpi"><small><span class="ic">${ico('sales', 15)}</span>پسولە</small>${cuInt(sales.length, 'kCount')}</div>
@@ -1100,14 +1111,14 @@ V.dash = () => {
         <div class="card kpi"><small><span class="ic">${ico('check', 15)}</span>وەرگیراو بە FIB</small>${cu(fibNet, 'kFib')}</div></div>
       <div class="card pad"><div class="row sp"><h2>فرۆشتن بە پێی کاتژمێر</h2>${own ? `<span class="tag ${known ? 'g' : 'n'}" id="kProfit" title="قازانج تەنها بۆ بەڕێوەبەر دەردەکەوێت">قازانج: ${known ? `<span class="num">${fmtMoney(profit)}</span>${unknown ? ' (بەشێک)' : ''}` : 'نرخی کڕین دانەنراوە'}</span>` : ''}</div>
         <div class="bars">${hrs.map((h, i) => `<div><i class="${by[i] ? '' : 'z'} ${h === nowH ? 'now' : ''}" style="--i:${i};height:${Math.max(3, by[i] / mx * 100)}%" title="${fmtMoney(by[i])}"></i><s>${h}</s></div>`).join('')}</div></div></div></div>
-    <div class="brs">${brs.map(x => `<div class="card pad"><div class="row sp"><h2>${esc(x.nm)}</h2><span class="tag ${x.n ? 'g' : 'n'}">${x.n ? `<span class="num">${x.n}</span> پسولە` : 'هێشتا فرۆشتن نییە'}</span></div><div class="row sp" style="margin-top:10px;align-items:flex-end"><div><small class="mute">فرۆشی ئەمڕۆ</small><div class="bv">${cu(x.v)}</div></div><div style="text-align:left"><small class="mute">مەسروف ${money(x.ex)}</small><br><small class="mute"><span class="num">${x.act}</span> جموجۆڵ</small></div></div><div class="duel"><div class="bar"><i style="width:${x.v / brMax * 100}%"></i></div></div><div class="row" style="margin-top:12px;flex-wrap:wrap;gap:6px"><span class="tag g">کاش ${money(x.cash)}</span><span class="tag b">FIB ${money(x.fib)}</span><span class="tag a">قەرز ${money(x.debt)}</span></div></div>`).join('')}</div>
+    <div class="brs">${brs.map(x => `<div class="card pad"><div class="row sp"><h2>${esc(x.nm)}</h2><span class="tag ${x.n ? 'g' : 'n'}">${x.n ? `<span class="num">${x.n}</span> پسولە` : 'هێشتا فرۆشتن نییە'}</span></div><div class="row sp" style="margin-top:10px;align-items:flex-end"><div><small class="mute">فرۆشی ئەمڕۆ</small><div class="bv">${cu(x.v)}</div><small class="units"><span class="num" data-bu="${x.k}">${x.u.toLocaleString('en-US')}</span> دانە</small></div><div style="text-align:left"><small class="mute">مەسروف ${money(x.ex)}</small><br><small class="mute"><span class="num">${x.act}</span> جموجۆڵ</small></div></div><div class="duel"><div class="bar"><i style="width:${x.v / brMax * 100}%"></i></div></div><div class="row" style="margin-top:12px;flex-wrap:wrap;gap:6px"><span class="tag g">کاش ${money(x.cash)}</span><span class="tag b">FIB ${money(x.fib)}</span><span class="tag a">قەرز ${money(x.debt)}</span></div></div>`).join('')}</div>
     ${dayLine()}
     <div class="two"><div style="display:grid;gap:18px">
       ${own ? watchCard(t0) : ''}
       ${own ? `<div class="card pad ${wait.length ? 'wait' : ''}"><div class="row sp"><h2>چاوەڕوانی ڕەزامەندیی تۆ</h2>${wait.length ? `<span class="tag a num">${wait.length}</span>` : ''}</div>${wait.map(a => `<div class="item"><div class="dot a">${ico('alert', 17)}</div><div class="grow"><p><b>${esc(a.by)}</b> داوای داشکاندنی ${money(a.amt)} دەکات لەسەر ${money(a.sub)}</p><small>${a.why ? esc(a.why) + ' · ' : ''}${esc(S.branches[a.branch])} · ${hm(a.t)}</small></div><div class="row"><button class="btn green sm" data-ok="${a.id}">ڕازیم</button><button class="ghost sm" data-no="${a.id}">نا</button></div></div>`).join('') || '<div class="empty"><b>هیچ داواکارییەک نییە</b>داواکاریی داشکاندنی کارمەندەکان لێرە دەردەکەوێت</div>'}</div>` : ''}
       <div class="card pad"><h2>دوایین کارەکان</h2>${S.log.filter(inB).slice(0, 7).map(feedRow).join('') || '<div class="empty"><b>هێشتا هیچ شتێک ڕووی نەداوە</b></div>'}</div></div>
     <div style="display:grid;gap:18px">
-      <div class="card pad"><h2>فرۆشی کارمەندەکان</h2><div class="duel">${Object.entries(staff).map(([n, v]) => `<div><div class="row sp"><span class="row"><span class="av" style="width:30px;height:30px;border-radius:9px;font-size:13px">${esc(n[0].toUpperCase())}</span><b class="en">${esc(n)}</b><small class="mute"><span class="num">${v.n}</span> پسولە</small></span><b class="num">${fmtMoney(v.sum)}</b></div><div class="bar" style="margin-top:8px"><i style="width:${v.sum / maxStaff * 100}%"></i></div></div>`).join('') || '<div class="empty">هێشتا فرۆشتن نییە</div>'}</div></div>
+      <div class="card pad"><h2>فرۆشی کارمەندەکان</h2><div class="duel">${Object.entries(staff).map(([n, v]) => `<div><div class="row sp"><span class="row"><span class="av" style="width:30px;height:30px;border-radius:9px;font-size:13px">${esc(n[0].toUpperCase())}</span><b class="en">${esc(n)}</b><small class="mute"><span class="num">${v.n}</span> پسولە · <span class="num">${v.u}</span> دانە</small></span><b class="num">${fmtMoney(v.sum)}</b></div><div class="bar" style="margin-top:8px"><i style="width:${v.sum / maxStaff * 100}%"></i></div></div>`).join('') || '<div class="empty">هێشتا فرۆشتن نییە</div>'}</div></div>
       <div class="card pad"><h2>کاڵای کەمبوو</h2>${low.map(i => `<div class="item" style="align-items:center"><div class="grow"><p class="en" style="text-align:left;font-weight:600">${esc(i.name)}</p></div>${i.s.map((n, k) => b < 0 || b === k ? `<span class="row" style="gap:6px"><small>${esc(S.branches[k])}</small>${bat(n)}</span>` : '').join('')}</div>`).join('') || '<div class="empty">هەموو کاڵاکان بە بڕی باش هەن</div>'}</div></div></div>`;
   $('#view').querySelectorAll('[data-days]').forEach(x => x.onclick = () => { S.chartDays = +x.dataset.days; render(true); });
   $('#view').querySelectorAll('[data-fv]').forEach(x => x.onclick = () => run('fibVerify', { no: +x.dataset.fv }, () => { toast('پشتڕاست کرایەوە'); render(); }));

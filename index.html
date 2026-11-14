@@ -476,6 +476,18 @@ b.num,span.num{white-space:nowrap}
 .toast{opacity:0;visibility:hidden;pointer-events:none;transition:transform .5s var(--spring),opacity .25s ease,visibility 0s linear .5s}
 .toast.on{opacity:1;visibility:visible;pointer-events:auto;transition:transform .5s var(--spring),opacity .2s ease,visibility 0s}
 .toast:empty{display:none}
+
+/* page frozen behind an open sheet (phones) */
+html.locked,html.locked body{overflow:hidden;overscroll-behavior:none}
+html.locked body{position:fixed;left:0;right:0;width:100%}
+.modal{overscroll-behavior:contain}
+.sheet,#feed,.cart-lines{overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch}
+body{overscroll-behavior-y:none}
+/* pieces sold, under the money */
+.units{display:block;font-style:normal;font-size:13px;font-weight:700;color:var(--ink2);margin:2px 0 4px}
+.ring .mid .units{color:var(--ink2);font-family:inherit;font-size:13px}
+.ring .mid .units .num{color:var(--ink);font-size:15px;font-weight:800}
+.brs .units .num{color:var(--ink);font-weight:800}
 </style>
 </head>
 <body>
@@ -509,6 +521,6 @@ b.num,span.num{white-space:nowrap}
 
 
 
-<script src="app.js?v=59a9dfad824e"></script>
+<script src="app.js?v=400e78b0f533"></script>
 </body>
 </html>
