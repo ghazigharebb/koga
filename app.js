@@ -913,6 +913,39 @@ function exchange(sale, l) {
 }
 
 /* ---------- items & stock ---------- */
+/* what the stock is worth: all branches and each branch, at retail, at wholesale and (manager only) at buying price.
+   Exact integer cents; anything that cannot be priced is left out and said so, never guessed. */
+function stockWorth(k) {
+  const o = { kinds: 0, units: 0, r: 0, w: 0, wMissN: 0, wMissU: 0, c: 0, cU: 0, cMissN: 0, cMissU: 0, cR: 0, cWc: 0, cW: 0, out: 0, low: 0 };
+  S.items.forEach(i => {
+    const n = k < 0 ? i.s.reduce((a, x) => a + x, 0) : i.s[k];
+    if (n <= 0) { o.out++; return; }
+    if (n <= 5) o.low++;
+    o.kinds++; o.units += n; o.r += n * i.r;
+    if (i.w > 0) o.w += n * i.w; else { o.wMissN++; o.wMissU += n; }
+    if (i.c != null) { o.c += n * i.c; o.cU += n; o.cR += n * i.r; if (i.w > 0) { o.cW += n * i.w; o.cWc += n * i.c; } } else { o.cMissN++; o.cMissU += n; }
+  });
+  return o;
+}
+function valueCard(own) {
+  const cols = [{ k: -1, nm: 'هەموو لقەکان' }, ...S.branches.map((nm, k) => ({ k, nm }))], all = stockWorth(-1);
+  const line = (lbl, val, id, note, cls) => `<div class="vrow ${cls || ''}"><span>${lbl}</span><b class="num" ${id}>${val}</b>${note ? `<small class="vnote">${note}</small>` : ''}</div>`;
+  const col = c => { const o = c.k < 0 ? all : stockWorth(c.k), K = c.k < 0 ? 'all' : c.k, share = all.r ? Math.round(o.r / all.r * 100) : 0;
+    return `<div class="card pad vcol ${c.k < 0 ? 'vall' : ''}"><div class="row sp"><h2>${esc(c.nm)}</h2>${c.k < 0 ? '' : `<span class="tag b"><span class="num">${share}%</span> ی کۆگا</span>`}</div>
+      <div class="vunits"><b class="num" data-vu="${K}">${o.units.toLocaleString('en-US')}</b><span>دانە · <span class="num">${o.kinds}</span> جۆر کاڵا${o.out ? ` · <span class="num">${o.out}</span> نەماوە` : ''}</span></div>
+      ${line('ئەگەر بە <b>تاک (موفرەد)</b> بیفرۆشیت', fmtMoney(o.r), `data-vr="${K}"${c.k < 0 ? ' id="valRetail"' : ''}`, '', 'vbig')}
+      ${line('ئەگەر بە <b>جوملە</b> بیفرۆشیت', fmtMoney(o.w), `data-vw="${K}"`, o.wMissN ? `<span class="num">${o.wMissN}</span> کاڵا (<span class="num">${o.wMissU.toLocaleString('en-US')}</span> دانە) نرخی جوملەیان نییە و حیساب نەکراون` : '')}
+      ${own ? line('<b>وەک خۆی</b> — بە نرخی کڕین', o.cU ? fmtMoney(o.c) : 'نرخی کڕین دانەنراوە', `data-vc="${K}"${c.k < 0 ? ' id="valCost"' : ''}`, o.cMissN && o.cU ? `تەنها بۆ <span class="num">${o.cU.toLocaleString('en-US')}</span> دانە؛ <span class="num">${o.cMissN}</span> کاڵا نرخی کڕینیان نییە` : o.cMissN ? `<span class="num">${o.cMissN}</span> کاڵا نرخی کڕینیان نییە — لە «نرخ» دایبنێ` : '', 'vcost') : ''}
+      ${own ? line('قازانج ئەگەر بە تاک بفرۆشیت', o.cU ? fmtMoney(o.cR - o.c) : '—', `data-vpr="${K}"${c.k < 0 ? ' id="valProfit"' : ''}`, o.cU && o.cMissN ? 'تەنها کاڵاکانی خاوەن نرخی کڕین' : '', 'vgood') : ''}
+      ${own ? line('قازانج ئەگەر بە جوملە بفرۆشیت', o.cWc ? fmtMoney(o.cW - o.cWc) : '—', `data-vpw="${K}"`, '', 'vgood') : ''}
+      ${c.k < 0 ? '' : `<div class="bar vbar"><i style="width:${share}%"></i></div>`}</div>`; };
+  const cats = [...new Set(S.items.map(i => i.cat))], br = S.branches.map((b, k) => k);
+  const catRow = cat => { const its = S.items.filter(i => i.cat === cat), u = k => its.reduce((a, i) => a + Math.max(0, i.s[k]), 0), tot = br.reduce((a, k) => a + u(k), 0), r = its.reduce((a, i) => a + i.s.reduce((x, n) => x + Math.max(0, n), 0) * i.r, 0), w = its.reduce((a, i) => a + (i.w > 0 ? i.s.reduce((x, n) => x + Math.max(0, n), 0) * i.w : 0), 0), c = its.reduce((a, i) => a + (i.c != null ? i.s.reduce((x, n) => x + Math.max(0, n), 0) * i.c : 0), 0);
+    return `<tr><td><span class="tag n">${esc(cat)}</span></td><td class="num">${its.length}</td>${br.map(k => `<td class="num">${u(k).toLocaleString('en-US')}</td>`).join('')}<td class="num"><b>${tot.toLocaleString('en-US')}</b></td><td>${money(r)}</td><td>${money(w)}</td>${own ? `<td>${its.some(i => i.c != null) ? money(c) : '<span class="mute">—</span>'}</td>` : ''}</tr>`; };
+  return `<div class="vgrid">${cols.map(col).join('')}</div>
+    <div class="card scroll" style="margin-bottom:14px"><table class="vcat"><tr><th>پۆل</th><th>جۆر</th>${br.map(k => `<th>دانە · ${esc(S.branches[k])}</th>`).join('')}<th>کۆی دانە</th><th>بە تاک</th><th>بە جوملە</th>${own ? '<th>بە نرخی کڕین</th>' : ''}</tr>${cats.map(catRow).join('')}
+      <tr class="vtot"><td><b>کۆی گشتی</b></td><td class="num">${S.items.length}</td>${br.map(k => `<td class="num"><b>${stockWorth(k).units.toLocaleString('en-US')}</b></td>`).join('')}<td class="num"><b>${all.units.toLocaleString('en-US')}</b></td><td><b>${money(all.r)}</b></td><td><b>${money(all.w)}</b></td>${own ? `<td><b>${all.cU ? money(all.c) : '—'}</b></td>` : ''}</tr></table></div>`;
+}
 V.items = () => {
   const noBc = S.items.filter(i => !i.bc).length, low = S.items.filter(i => i.s[S.branch] <= 5).length, own = isOwner();
   const f = S.itemFilter, list = S.items.filter(i => f === 'nobc' ? !i.bc : f === 'low' ? i.s[S.branch] <= 5 : true);
@@ -927,12 +960,7 @@ V.items = () => {
       <td><div class="row">${own ? `<button class="ghost sm" data-e="${i.id}">نرخ</button>` : ''}<button class="ghost sm" data-adj="${i.id}">کەمکردن</button>${!i.bc ? `<button class="ghost sm" data-b="${i.id}">بارکۆد</button>` : ''}</div></td></tr>`).join('')}</table></div>`;
   const inTable = `<div class="kgrid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))"><div class="card kpi"><small>دانەی داخیلکراو</small>${cuInt(pQty)}</div><div class="card kpi"><small>بەهای فرۆشتنیان</small>${cu(pRet)}</div>${own ? `<div class="card kpi"><small>کۆی کڕین</small>${cu(pCost, 'pCostAll')}</div><div class="card kpi"><small>قازانجی چاوەڕوانکراو</small>${cu(P.reduce((a, x) => a + (x.cost != null ? x.qty * (x.retail - x.cost) : 0), 0))}</div>` : ''}</div>
     <div class="card scroll">${P.length ? `<table><tr><th>کات</th><th>کاڵا</th><th>بڕ</th><th>نرخی فرۆشتن</th><th>بەهای فرۆشتن</th>${own ? '<th>نرخی کڕین</th><th>کۆی کڕین</th><th>قازانج</th>' : ''}<th>کێ</th><th>لق</th></tr>${P.map(x => `<tr><td>${hm(x.t)}</td><td class="en">${esc(x.name)}</td><td class="num"><b>${x.qty}</b></td><td>${money(x.retail)}</td><td>${money(x.qty * x.retail)}</td>${own ? (x.cost != null ? `<td>${money(x.cost)}</td><td><b>${money(x.qty * x.cost)}</b></td><td><span class="tag g">${money(x.qty * (x.retail - x.cost))}</span></td>` : '<td colspan="3"><span class="tag a">نرخی کڕین دانەنراوە</span></td>') : ''}<td class="en">${esc(x.by)}</td><td>${esc(S.branches[x.branch])}</td></tr>`).join('')}</table>` : '<div class="empty"><b>هێشتا هیچ کاڵایەک داخیل نەکراوە</b>هەر داخیلکردنێک بە بڕ، نرخ و کۆی گشتییەوە لێرە تۆمار دەبێت</div>'}</div>`;
-  $('#view').innerHTML = `<div class="kgrid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
-      <div class="card kpi"><small><span class="ic">${ico('items', 15)}</span>دانەی ناو هەموو لقەکان</small>${cuInt(units)}</div>
-      <div class="card kpi"><small><span class="ic">${ico('pos', 15)}</span>بەهای کۆگا بە نرخی تاک</small>${cu(vR, 'valRetail')}</div>
-      <div class="card kpi"><small><span class="ic">${ico('customers', 15)}</span>بە نرخی جوملە</small>${cu(vW)}</div>
-      ${own ? `<div class="card kpi"><small><span class="ic">${ico('expenses', 15)}</span>بە پارەی خۆی (نرخی کڕین)</small>${withC.length ? cu(vC, 'valCost') : '<b id="valCost" class="mute" style="font-size:17px">نرخی کڕین دانەنراوە</b>'}${noC && withC.length ? `<small style="margin-top:6px"><span class="tag a">تەنها بۆ <span class="num">${withC.length}</span> کاڵا · <span class="num">${noC}</span> کاڵا نرخی کڕینیان نییە</span></small>` : noC ? `<small style="margin-top:6px"><span class="tag a"><span class="num">${noC}</span> کاڵا نرخی کڕینیان نییە</span></small>` : ''}</div>
-      <div class="card kpi"><small><span class="ic">${ico('check', 15)}</span>قازانج ئەگەر هەمووی بفرۆشرێت</small>${withC.length ? cu(vRk - vC, 'valProfit') : '<b class="mute" style="font-size:17px">—</b>'}${noC && withC.length ? `<small style="margin-top:6px"><span class="tag a">تەنها بۆ <span class="num">${withC.length}</span> کاڵا</span></small>` : ''}</div>` : ''}</div>
+  $('#view').innerHTML = `${valueCard(own)}
     <div class="row sp" style="margin-bottom:14px;flex-wrap:wrap">
     <div class="chips" style="margin:0"><button class="chip ${f === 'all' ? 'on' : ''}" data-f="all">هەموو <span class="num">${S.items.length}</span></button><button class="chip ${f === 'nobc' ? 'on' : ''}" data-f="nobc">بێ بارکۆد <span class="num">${noBc}</span></button><button class="chip ${f === 'low' ? 'on' : ''}" data-f="low">کەمبوو <span class="num">${low}</span></button><button class="chip ${f === 'in' ? 'on' : ''}" data-f="in">مێژووی داخیلکردن <span class="num">${P.length}</span></button></div>
     <div class="row">${own ? '<button class="ghost" id="newItem">کاڵای نوێ</button>' : ''}<button class="btn volt" id="recv">داخیلکردنی کاڵا</button></div></div>
