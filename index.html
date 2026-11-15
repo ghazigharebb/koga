@@ -816,6 +816,34 @@ td .rm:hover{background:var(--red);color:var(--on-ink)}
 .gr .gp small.num{font-size:14.5px;font-weight:700;color:var(--ink2)}
 .gadd{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:13px;background:var(--volt);color:var(--volt-ink);font-weight:800;font-size:22px;flex:none}
 @media(max-width:760px){.pos>div.one{padding:12px;border-radius:20px}.gr .prod.gi{gap:10px;padding:12px 8px;flex-wrap:wrap}.gpic{width:42px;height:42px;border-radius:13px}.gr .gm{flex-basis:calc(100% - 56px)}.gr .gm>b.nm{font-size:15.5px}.gr .gp{justify-items:start;margin-inline-start:52px;flex:1}.gr .gp .num{font-size:20px}}
+/* ---------- side menu: named groups, one icon per entry ---------- */
+.ngh{font-size:12px;font-weight:800;color:var(--mute);letter-spacing:.2px;padding:12px 14px 3px;opacity:.85}
+.ngh:first-child{padding-top:2px}
+@media (min-width:761px) and (max-height:940px){.ngh{padding:8px 14px 2px;font-size:11.5px}}
+@media (min-width:761px) and (max-height:760px){.ngh{padding:5px 14px 1px;font-size:11px}}
+@media(max-width:760px){.ngh{display:none}}
+.more .mgh{grid-column:1/-1;font-size:12.5px;font-weight:800;color:var(--mute);padding:8px 2px 0}
+/* the active entry carries its own highlight (a sliding marker measured by script could land between rows) */
+@media(min-width:761px){
+  #navInd{display:none!important}
+  nav a.on{background:linear-gradient(90deg,rgba(var(--vrgb),.02),rgba(var(--vrgb),.14));box-shadow:inset 0 0 0 1px rgba(var(--vrgb),.22)}
+  nav a.on:after{content:"";position:absolute;inset-inline-start:0;top:9px;bottom:9px;width:3px;border-radius:3px;background:var(--volt);box-shadow:0 0 14px var(--volt)}
+  html[data-theme="light"] nav a.on:after{background:var(--vt);box-shadow:none}
+}
+/* ---------- item photos ---------- */
+.gpic{position:relative;overflow:hidden}
+.gpic img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;padding:3px}
+.gpic.has{background:#fff;box-shadow:inset 0 0 0 1px var(--line2)}.gpic.has svg{opacity:0}
+.gpic.sm{width:30px;height:30px;border-radius:9px;flex:none}.gpic.lg{width:72px;height:72px;border-radius:18px}
+.lnm{display:flex;align-items:center;gap:9px}.lnm span{min-width:0}
+.irow{display:inline-flex;align-items:center;gap:9px}
+.ihead{display:flex;align-items:center;gap:14px;flex-direction:row-reverse;justify-content:flex-end;margin-bottom:6px}
+/* white products on a white tile vanish: a soft tile and multiply keep their edges and shading */
+.gpic.has{background:linear-gradient(160deg,#f6f7f4,#e9ece6);box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.gpic img{background:none;mix-blend-mode:multiply;padding:4px}
+.gr .gpic{width:64px;height:64px;border-radius:17px}
+@media(max-width:760px){.gr .gpic{width:50px;height:50px;border-radius:14px}}
+.gpic.sm{width:34px;height:34px}
 </style>
 </head>
 <body>
@@ -851,6 +879,6 @@ td .rm:hover{background:var(--red);color:var(--on-ink)}
 
 
 
-<script src="app.js?v=ea9fea8060fa"></script>
+<script src="app.js?v=f90d850d8ee1"></script>
 </body>
 </html>
