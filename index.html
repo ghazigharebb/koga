@@ -351,7 +351,7 @@ td.en{white-space:nowrap}
 .seg button{white-space:nowrap}
 #view table td,#view table th{padding-inline:11px}
 td.en{max-width:290px;overflow:hidden;text-overflow:ellipsis}
-@media (max-width:760px){.kgrid>:last-child{grid-column:1/-1}.seg button{padding:7px 9px}}
+@media (max-width:760px){.kgrid>:last-child:nth-child(odd){grid-column:1/-1}.seg button{padding:7px 9px}}
 .stk{display:inline-flex;align-items:center;gap:7px;font-weight:800;font-size:14px;white-space:nowrap}
 .stk svg{transform:rotate(-90deg);flex:none;overflow:visible}
 .stk .t{fill:none;stroke:currentColor;opacity:.16;stroke-width:2.6}
@@ -410,12 +410,12 @@ input[type=date].inp{color-scheme:var(--cs);padding:9px 12px}
 .card,.prod,.btn,.ghost,.inp{-webkit-tap-highlight-color:transparent}
 button,a,label{touch-action:manipulation}
 /* tablets and half-width windows keep the basket beside the products */
-@media (min-width:761px) and (max-width:1100px){
+@media (min-width:761px) and (max-width:1100px){.app{grid-template-columns:220px 1fr}main{padding:18px 18px 60px}}
+@media (min-width:961px) and (max-width:1100px){
   .pos{grid-template-columns:1fr 340px;padding-bottom:0}
   .cart{position:sticky;inset:auto;top:20px;max-height:calc(100vh - 40px);border-radius:24px;transform:none;z-index:auto;box-shadow:none}
   .cartbar{display:none!important}.mclose{display:none}
   .enter .pos>.cart{animation:rise .7s var(--ease) both}
-  .app{grid-template-columns:220px 1fr}main{padding:18px 18px 60px}
   .grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
 }
 /* login */
@@ -740,7 +740,7 @@ tr.sel td{background:rgba(var(--vrgb),.07)}
 .gsum.bad{margin-bottom:8px}.gsum b small{font-size:13.5px;color:var(--ink2);font-weight:700;margin-inline-start:6px}
 .curseg{display:flex}.curseg button{padding:6px 8px;font-size:13px}
 /* a short laptop screen: the basket is not squeezed into a tiny scrolling window; the page itself scrolls */
-@media (min-width:761px) and (max-height:820px){.cart{position:static;max-height:none;overflow:visible}.cart-lines{overflow:visible;min-height:0}}
+
 #acctBox .curlab{grid-column:1/-1}
 .buyer{gap:8px}.buyer .inp{padding:9px 12px;font-size:14.5px;min-width:0}
 .undo{display:inline-flex;align-items:center;gap:7px;color:var(--red);border-color:rgba(var(--rrgb),.35)}.undo small{color:var(--mute);font-weight:700}
@@ -854,6 +854,89 @@ td .rm:hover{background:var(--red);color:var(--on-ink)}
 .slbar{gap:10px;margin-bottom:14px;flex-wrap:wrap}.slbar .inp{min-width:260px}
 .slit{display:block;margin-top:4px;font-size:12.5px;color:var(--mute);direction:ltr;text-align:left;line-height:1.6}.slit .ilink{font-size:12.5px}
 .tilln{margin:0 0 14px}.nqty .inp{font-size:19px;font-weight:800}
+/* ---------- nothing is cut off: numbers fit their box, the side menu fits the window ---------- */
+i.cy{font-style:normal;font-size:max(.5em,12px);font-weight:700;letter-spacing:0;opacity:.8}
+.kgrid>*{min-width:0}
+.kpi>b{white-space:nowrap;text-align:end;max-width:100%}
+.kwrap{container-type:inline-size;min-width:0}
+.kgrid.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@container (max-width:819px){.kgrid.k4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ring .mid{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .mid>b{max-width:70%;white-space:nowrap}
+@media(min-width:761px){
+  .side nav a{height:var(--nh,46px);flex:none}
+  .side nav a.on{font-weight:800;background:linear-gradient(90deg,rgba(var(--vrgb),.05),rgba(var(--vrgb),.2));box-shadow:inset 0 0 0 1px rgba(var(--vrgb),.3)}
+  .side .ngh{height:26px;flex:none;display:flex;align-items:flex-end;padding:0 14px 4px;font-size:11.5px;line-height:1}
+  .side.tight nav{gap:0}
+  .side.tight nav a{font-size:14.5px;border-radius:10px;gap:10px}
+  .side.tight nav a.on:after{top:6px;bottom:6px}
+  .side.tight .ngh{height:9px;padding:0;font-size:0;position:relative}
+  .side.tight .ngh:after{content:"";position:absolute;inset-inline:14px;top:4px;height:1px;background:var(--line)}
+  .side.scrolls nav{scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+  .side.scrolls nav::-webkit-scrollbar{display:block;width:5px}
+  .side.scrolls nav::-webkit-scrollbar-thumb{background:var(--line2);border-radius:9px}
+}
+.lo{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+#acctBox .va{min-width:0;text-overflow:ellipsis}
+@media (min-width:761px) and (max-height:760px){#acctBox:has(.va) .lo span{display:none}#acctBox:has(.va) .lo{width:38px;height:38px;padding:0;flex:none}#acctBox .va{height:38px}}
+/* ---------- selling screen: the basket never spills, stays in view on a short laptop, and folds away on a tablet ---------- */
+.line{grid-template-columns:minmax(0,1fr) auto}
+.line .qty{flex-wrap:wrap;min-width:0}
+.line .nm span{overflow-wrap:anywhere}
+.line .lx{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.line .lx .wchip{margin:0}
+.gr .gm>b.nm{overflow-wrap:anywhere}
+.pos>div.one{container-type:inline-size}
+@container (max-width:470px){.gr .prod.gi{gap:10px;padding:12px 8px;flex-wrap:wrap}.gr .gpic{width:42px;height:42px;border-radius:13px}.gr .gm{flex-basis:calc(100% - 56px)}.gr .gm>b.nm{font-size:15.5px}.gr .gp{justify-items:start;margin-inline-start:52px;flex:1}.gr .gp .num{font-size:20px}}
+@media (min-width:961px) and (max-height:820px){
+  .cart-h{padding:12px 16px 10px}.cart-lines{padding:2px 16px;min-height:118px}.line{padding:10px 0}
+  .cart-f{padding:10px 16px 14px;gap:8px;grid-template-columns:auto auto minmax(0,1fr)}
+  .cart-f>*{grid-column:1/-1}.cart-f>.acts2{display:contents}.cart-f>#sellBtn{grid-column:3}
+  .cart-f .acts2 .ghost{flex:none;padding-inline:14px}
+  .tot b{font-size:32px}
+  .cart-f .pay button{padding:8px}.cart-f .buyer .inp{padding:8px 12px}.cart-f .btn.big{padding:12px 16px;font-size:18px}.cart-f .acts2 .ghost{padding-block:12px}
+  .cart-h .row.sp{margin-bottom:8px}
+}
+@media (min-width:761px) and (max-width:960px){.cartbar{inset-inline-start:248px}}
+/* on a computer the selling screen is one fixed page: the product list scrolls inside its own frame, the basket with its total and the sell button is always whole */
+@media (min-width:961px){
+  main:has(>#view>.pos){height:100vh;display:flex;flex-direction:column;padding-bottom:14px}
+  main:has(>#view>.pos)>#view{flex:1;min-height:0}
+  main:has(>#view>.pos) .pos{height:100%;align-items:stretch}
+  main:has(>#view>.pos) .pos>div.one{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  main:has(>#view>.pos) #grid{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+  main:has(>#view>.pos) .cart{position:static;max-height:100%;align-self:start}
+}
+.gr .gp{row-gap:2px}
+@media(min-width:761px){
+  .side.tight{padding:12px 10px}
+  .side.tight .brand small{display:none}.side.tight .brand{padding-bottom:10px}.side.tight .bolt{width:36px;height:36px;border-radius:11px}
+  .side.tight .who{display:none}
+  .side.tight .side-foot{padding-top:10px;gap:8px}
+  .side.tight #acctBox{grid-template-columns:minmax(0,1fr) auto;align-items:end}
+  .side.tight #acctBox label{font-size:0!important}
+  .side.tight #acctBox .va{font-size:14px;height:38px}
+  .side.tight .side-foot .ghost.lo{width:auto}
+  .side.tight #acctBox:has(.va) .lo span{display:none}
+  .side.tight #acctBox:has(.va) .lo{width:38px;height:38px;padding:0;flex:none}
+}
+.top{flex-wrap:wrap;row-gap:10px}.top>div:first-child{min-width:0}.top-r{margin-inline-start:auto}
+.lowi{flex-wrap:wrap;gap:6px 12px}.lowi>.grow{flex:1 1 160px;min-width:0}.lowi p{overflow-wrap:anywhere}
+/* ---------- wide tables fit a laptop ---------- */
+.itab td.en{min-width:250px;max-width:320px;overflow:visible}
+#view .itab td,#view .itab th{padding-inline:6px}#view .itab td:last-child{padding-inline-end:12px}#view .itab td:first-child,#view .itab th:first-child{padding-inline-start:14px}
+.itab .irow{display:flex;min-width:0;max-width:100%}
+.itab .inm{display:grid;min-width:0;gap:2px}
+.itab .ilink{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.itab .ibc{color:var(--mute);font-size:12.5px;font-weight:600;letter-spacing:.2px;text-align:left}
+.itab td .row{gap:5px;flex-wrap:wrap;width:150px;justify-content:flex-end}
+.itab td .ghost.sm{padding:5px 8px;font-size:12.5px}.itab td .rm{width:29px;height:29px}
+.vrow{display:flex;flex-wrap:wrap;justify-content:space-between}
+.vrow>span{flex:1 1 170px;min-width:0}.vrow>b{white-space:nowrap}.vnote{flex:1 1 100%}
+.itab td>.tag:not(:first-child){display:block;width:max-content;margin-top:3px}
+/* a table wider than the screen fades out on the side where it continues */
+.scroll.more{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 38px);mask-image:linear-gradient(to right,transparent 0,#000 38px)}
+.pd{min-width:0}.pd>b{max-width:100%;white-space:nowrap}.pd>b.en{overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -889,6 +972,6 @@ td .rm:hover{background:var(--red);color:var(--on-ink)}
 
 
 
-<script src="app.js?v=1f7b9bcf5b29"></script>
+<script src="app.js?v=ecc91628a471"></script>
 </body>
 </html>
