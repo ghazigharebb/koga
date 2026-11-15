@@ -1010,15 +1010,21 @@ V.pos = () => {
   document.querySelectorAll('.chip').forEach(c => c.onclick = () => { S.cat = c.dataset.c; V.pos(); });
   drawGrid(); drawCart(); autoFocus(q);
 };
-function drawGrid() {
-  const t = S.q.trim().toLowerCase();
+function drawGrid() { // the product list as ONE piece: a row per item with every detail (the look he chose, «C»)
+  const t = S.q.trim().toLowerCase(), b = S.branch, mv = moves(b);
   const list = S.items.filter(i => (S.cat === 'هەموو' || i.cat === S.cat) && (!t || i.name.toLowerCase().includes(t) || i.bc.includes(t)));
-  $('#grid').innerHTML = list.map(i => {
-    const st = i.s[S.branch], p = priceOf(i), bad = st <= 0 || p <= 0;
-    return `<button class="prod ${bad ? 'out' : ''}" data-id="${i.id}"><div class="pic k-${catIcon(i.cat)}">${ico(catIcon(i.cat), 30)}</div><div class="nm">${esc(i.name)}</div><div class="bc num">${esc(i.bc) || '— بێ بارکۆد'}</div>
-      <div class="row sp"><span class="pr">${p > 0 ? money(p) : '<span class="tag r">نرخی نییە</span>'}${p > 0 ? `<small class="num">${S.cur === 'IQD' ? USD(p) : DIN(Core.dueDinar(S, [{ id: i.id, qty: 1 }], S.cart.type, 0))}</small>` : ''}</span>${bat(st)}</div></button>`;
-  }).join('') || `<div class="empty" style="grid-column:1/-1"><b>هیچ کاڵایەک نەدۆزرایەوە</b>ناو یان بارکۆدێکی تر تاقی بکەوە</div>`;
-  document.querySelectorAll('.prod').forEach(b => b.onclick = () => addLine(+b.dataset.id, 1, b));
+  const G = $('#grid'); G.className = 'grid alt'; G.parentElement.classList.add('one');
+  G.innerHTML = list.length ? `<div class="gr">${list.map(i => {
+    const st = i.s[b], p = priceOf(i), bad = st <= 0 || p <= 0, ic = catIcon(i.cat), tot = i.s.reduce((a, n) => a + Math.max(0, n), 0), lv = st <= 0 ? 'z' : st <= 5 ? 'l' : 'k';
+    const din = p > 0 ? DIN(Core.dueDinar(S, [{ id: i.id, qty: 1 }], S.cart.type, 0)) : '', whd = i.w > 0 ? DIN(i.wd > 0 ? i.wd : payDinar(i.w)) : '', sold = (mv[i.id] || { sold: 0 }).sold;
+    return `<button class="prod gi s-${lv} ${bad ? 'out' : ''}" data-id="${i.id}"><span class="gpic k-${ic}">${ico(ic, 28)}</span>
+      <span class="gm"><b class="en nm">${esc(i.name)}</b>
+        <small><span class="num gbc bc">${esc(i.bc) || '— بێ بارکۆد'}</span><span class="tag n">${esc(i.cat)}</span>${i.w > 0 ? `<span>جوملە <b class="num">${USD(i.w)}</b> · <b class="num">${whd}</b></span>` : ''}<span>ئەمڕۆ فرۆشراو <b class="num">${sold}</b></span></small>
+        <span class="gbar"><i style="width:${st > 0 ? Math.max(4, Math.min(100, Math.round(st / Math.max(1, tot) * 100))) : 0}%"></i></span>
+        <small>${S.branches.map((nm, k) => `<span class="${k === b ? 'stk gme ' + lv : ''}">${esc(nm)} <b class="num">${i.s[k]}</b></span>`).join('')}<span>کۆ <b class="num">${tot}</b></span>${st <= 0 ? '<span class="tag r">نەماوە</span>' : st <= 5 ? '<span class="tag a">کەمبووە</span>' : ''}</small></span>
+      <span class="gp pr">${p > 0 ? `${money(p)}<small class="num">${S.cur === 'IQD' ? USD(p) : din}</small>` : '<span class="tag r">نرخی نییە</span>'}</span><span class="gadd">+</span></button>`;
+  }).join('')}</div>` : `<div class="empty"><b>هیچ کاڵایەک نەدۆزرایەوە</b>ناو یان بارکۆدێکی تر تاقی بکەوە</div>`;
+  document.querySelectorAll('#grid .prod').forEach(x => x.onclick = () => addLine(+x.dataset.id, 1, x));
 }
 /* ---------- barcode scanner: works on every screen, no click on the search box needed ----------
    A scanner is a very fast keyboard that ends with Enter. The physical key is read (not the letter), so a Kurdish or

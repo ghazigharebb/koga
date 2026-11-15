@@ -793,6 +793,29 @@ td .rm{width:32px;height:32px;display:grid;place-items:center;border-radius:10px
 td .rm:hover{background:var(--red);color:var(--on-ink)}
 .kpi .kem{display:block;font-style:normal;color:var(--mute);font-size:13.5px;font-weight:700;margin-top:2px}
 .prod .pr{display:grid;line-height:1.15}.prod .pr small{font-size:12.5px;font-weight:700;color:var(--mute);letter-spacing:0}
+/* ---------- the product list as one piece: a row per item with every detail (his choice «C») ---------- */
+.pos>div.one{background:linear-gradient(180deg,var(--p2),var(--p1));border:1px solid var(--line);border-radius:24px;padding:16px;min-width:0}
+.pos>div.one .search{margin-bottom:12px}.pos>div.one .chips{margin-bottom:12px}
+.grid.alt{display:block}
+.gr .prod.gi{display:flex;flex-direction:row;align-items:center;gap:16px;width:100%;height:auto;min-height:0;padding:14px 12px;margin-bottom:6px;text-align:start;cursor:pointer;
+  background:none;border:0;border-bottom:1px solid var(--line);border-inline-start:5px solid var(--green);border-radius:6px;box-shadow:none;transform:none;overflow:visible}
+.gr .prod.gi:before{display:none}
+.gr .prod.gi:hover{background:rgba(var(--vrgb),.07);transform:none;box-shadow:none}
+.gr .prod.gi:active{transform:scale(.995)}
+.gr .prod.gi.s-l{border-inline-start-color:var(--amber)}.gr .prod.gi.s-z{border-inline-start-color:var(--red)}
+.gr .prod.gi.out{opacity:.45;filter:none}
+.gpic{display:inline-grid;place-items:center;width:54px;height:54px;border-radius:16px;flex:none;background:rgba(var(--crgb),.1);color:var(--cyan)}
+.gpic.k-cable{background:rgba(var(--vrgb),.1);color:var(--vt)}.gpic.k-phones{background:rgba(var(--argb),.1);color:var(--amber)}.gpic.k-more{background:rgba(var(--wrgb),.06);color:var(--ink2)}
+.gr .gm{flex:1;min-width:0;display:grid;gap:5px}
+.gr .gm>b.nm{font-family:Sora,"KU";font-size:17px;font-weight:700;line-height:1.35;text-align:left;height:auto;display:block;flex:none}
+.gr .gm small{display:flex;flex-wrap:wrap;align-items:center;gap:5px 12px;font-size:13.5px;color:var(--mute);font-weight:700}
+.gr .gm small b{color:var(--ink2)}.gr .gbc{letter-spacing:.3px;color:var(--ink2);font-size:13.5px}
+.gr .gme{display:inline;color:var(--green)}.gr .gme b{color:var(--green)}.gr .gme.l,.gr .gme.l b{color:var(--amber)}.gr .gme.z,.gr .gme.z b{color:var(--red)}
+.gbar{display:block;height:6px;border-radius:99px;background:var(--p3);overflow:hidden;max-width:340px}.gbar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--g1),var(--g2))}
+.gr .gp{display:grid;justify-items:end;line-height:1.15;white-space:nowrap}.gr .gp .num{font-family:Sora,"KU";font-size:23px;font-weight:800}
+.gr .gp small.num{font-size:14.5px;font-weight:700;color:var(--ink2)}
+.gadd{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:13px;background:var(--volt);color:var(--volt-ink);font-weight:800;font-size:22px;flex:none}
+@media(max-width:760px){.pos>div.one{padding:12px;border-radius:20px}.gr .prod.gi{gap:10px;padding:12px 8px;flex-wrap:wrap}.gpic{width:42px;height:42px;border-radius:13px}.gr .gm{flex-basis:calc(100% - 56px)}.gr .gm>b.nm{font-size:15.5px}.gr .gp{justify-items:start;margin-inline-start:52px;flex:1}.gr .gp .num{font-size:20px}}
 </style>
 </head>
 <body>
@@ -828,6 +851,6 @@ td .rm:hover{background:var(--red);color:var(--on-ink)}
 
 
 
-<script src="app.js?v=fcf755c44b2a"></script>
+<script src="app.js?v=ea9fea8060fa"></script>
 </body>
 </html>
