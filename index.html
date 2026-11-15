@@ -639,6 +639,16 @@ main{padding-top:calc(22px + var(--sat))}
 .wt .dfi .en{white-space:normal;overflow:visible;max-width:none}
 .wt .wwhy{white-space:normal;min-width:160px;max-width:300px}
 @media(max-width:760px){.wk{grid-template-columns:1fr 1fr}.wl3{grid-template-columns:1fr}.wms{grid-template-columns:repeat(4,1fr)}.wbar .inp{max-width:none}}
+.line .snchip{grid-column:1/-1;justify-self:right;display:inline-flex;align-items:center;gap:8px;padding:3px 10px;border-radius:99px;border:1px solid rgba(var(--grgb),.35);background:rgba(var(--grgb),.07);color:var(--green);font-size:13px;font-weight:700}
+.line .snchip i{font-style:normal;opacity:.7}
+.line .snadd{grid-column:1/-1;justify-self:right;padding:3px 10px;border-radius:99px;border:1px dashed var(--line2);color:var(--mute);font-size:13px;font-weight:700}
+.line .snadd:hover{border-color:var(--vt);color:var(--vt)}
+.line .snadd.on{border-style:solid;border-color:var(--vt);color:var(--vt);background:rgba(var(--vrgb),.08)}
+.wl.hit{border-color:var(--vt);box-shadow:0 0 0 1px var(--vt)}
+.wl2 .sn{font-family:Sora,"KU";direction:ltr;unicode-bidi:isolate}.wl2 .sn.on{color:var(--vt)}
+.wt .dfi small{direction:ltr}
+.slip .si .ssn{direction:ltr;text-align:left;font-family:Sora,"KU",sans-serif}
+.gotq button small{color:var(--mute)}
 /* ---------- cash: what the customer handed over ---------- */
 .due{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:2px 12px;padding:14px 16px;border-radius:16px;background:var(--inset);border:1px solid var(--line)}
 .due small{grid-column:1/-1;color:var(--mute);font-weight:700;font-size:14px}
@@ -750,6 +760,6 @@ tr.sel td{background:rgba(var(--vrgb),.07)}
 
 
 
-<script src="app.js?v=7b2b30b4b181"></script>
+<script src="app.js?v=6d322a6cca02"></script>
 </body>
 </html>
