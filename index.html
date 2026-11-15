@@ -730,6 +730,69 @@ tr.sel td{background:rgba(var(--vrgb),.07)}
   #print{display:block!important;background:#fff}
   #print .slip{margin:0 auto;padding:3mm 0 2mm;max-width:none}
 }
+
+/* ---------- till, second round: remove icon, change calculator, short screens ---------- */
+.line .rm{width:34px;height:34px;display:grid;place-items:center;border-radius:11px;border:1px solid rgba(var(--rrgb),.3);background:rgba(var(--rrgb),.08);color:var(--red);justify-self:end;transition:.2s var(--ease)}
+.line .rm:hover{background:var(--red);color:var(--on-ink);border-color:var(--red);transform:scale(1.06)}
+.calc{margin-top:12px;padding:12px 14px 4px;border-radius:16px;border:1px dashed var(--line2)}
+.calc label.f{margin-bottom:8px}
+.gsum.cback{border-color:rgba(var(--grgb),.45);margin-bottom:8px}.gsum.cback b{color:var(--green);font-size:19px}
+.gsum.bad{margin-bottom:8px}.gsum b small{font-size:13.5px;color:var(--ink2);font-weight:700;margin-inline-start:6px}
+.curseg{display:flex}.curseg button{padding:6px 8px;font-size:13px}
+/* a short laptop screen: the basket is not squeezed into a tiny scrolling window; the page itself scrolls */
+@media (min-width:761px) and (max-height:820px){.cart{position:static;max-height:none;overflow:visible}.cart-lines{overflow:visible;min-height:0}}
+#acctBox .curlab{grid-column:1/-1}
+.buyer{gap:8px}.buyer .inp{padding:9px 12px;font-size:14.5px;min-width:0}
+.undo{display:inline-flex;align-items:center;gap:7px;color:var(--red);border-color:rgba(var(--rrgb),.35)}.undo small{color:var(--mute);font-weight:700}
+.lastsale{display:inline-flex;align-items:center;gap:7px;margin-top:14px}
+.byt .brow{cursor:pointer}.byt .brow:hover td{background:rgba(var(--vrgb),.05)}
+.byt .bdet>td{padding:0 0 10px;background:var(--inset2)}
+.cart-h .seg button{padding:8px 6px}
+/* ---------- product cards: one size, one order, a picture for every item's kind ---------- */
+.grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+.prod{height:214px;min-height:0;gap:7px}
+.prod .pic{height:58px;border-radius:14px;display:grid;place-items:center;flex:none;background:rgba(var(--crgb),.09);color:var(--cyan);border:1px solid rgba(var(--crgb),.16)}
+.prod .pic.k-cable{background:rgba(var(--vrgb),.09);color:var(--vt);border-color:rgba(var(--vrgb),.18)}
+.prod .pic.k-phones{background:rgba(var(--argb),.09);color:var(--amber);border-color:rgba(var(--argb),.18)}
+.prod .pic.k-more{background:rgba(var(--wrgb),.05);color:var(--ink2);border-color:var(--line2)}
+.prod .nm{flex:none;height:42px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14.5px}
+.prod .bc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prod .row.sp{margin-top:auto;flex-wrap:nowrap}.prod .pr{font-size:20px}
+.chip.ic{display:inline-flex;align-items:center;gap:7px}
+@media(max-width:760px){.grid{grid-template-columns:1fr 1fr}.prod{height:206px;padding:12px}.prod .pr{font-size:18px}}
+@media(max-width:760px){.prod{height:226px}.prod .row.sp{flex-wrap:wrap;row-gap:2px}}
+/* ---------- daily count as a sheet ---------- */
+.sheetw{border:1px solid var(--line2);border-radius:14px}
+.jsheet{border-collapse:collapse;width:100%}
+.jsheet th{position:sticky;top:0;background:var(--p3);font-size:13px;white-space:nowrap;z-index:1}
+.jsheet th,.jsheet td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+.jsheet td.en{text-align:left;min-width:220px;max-width:340px;white-space:normal}
+.jsheet tr.jrow{display:table-row;padding:0;border:0}
+.jsheet tr.ok td{background:rgba(var(--grgb),.06)}.jsheet tr.bad td{background:rgba(var(--rrgb),.08)}
+.jsheet .qty{justify-content:center}.jsheet .jc{width:74px;text-align:center;padding:6px 4px;font-weight:800}
+.jsheet .qty button{width:30px;height:30px;font-size:17px;border-radius:9px}
+.jokb{padding:6px 8px;color:var(--green)}
+.btn.blue{background:#1877F2;color:#fff;display:inline-flex;align-items:center;gap:8px;box-shadow:0 8px 22px -8px rgba(24,119,242,.6)}
+.btn.blue:disabled{opacity:.45;box-shadow:none}
+/* ---------- money count ---------- */
+.tills{margin-bottom:14px}.tillnow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.tillnow>div{padding:12px 14px;border-radius:14px;background:var(--inset);border:1px solid var(--line)}
+.tillnow small{display:block;color:var(--mute);font-weight:700;font-size:13.5px}.tillnow b{font-family:Sora,"KU";font-size:24px;font-weight:800;color:var(--vt)}
+.tillrows>div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px dashed var(--line2);font-size:14px;color:var(--ink2)}
+.hform{gap:10px;flex-wrap:wrap}.btn.blue.sm{padding:6px 10px;font-size:13.5px}
+.hands td small{display:block;color:var(--mute);font-weight:700;font-size:13px}
+#tbSum .tbd{display:block;font-size:12.5px;color:var(--mute);font-weight:700}
+/* ---------- items: history link, item data sheet ---------- */
+.ilink{font:inherit;font-weight:600;color:inherit;text-align:left;text-decoration:underline dotted;text-underline-offset:4px;text-decoration-color:var(--line2)}
+.ilink:hover{color:var(--vt);text-decoration-color:var(--vt)}
+.ihk{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px}
+.ihk>div{padding:9px 12px;border-radius:12px;background:var(--inset);border:1px solid var(--line)}
+.ihk small{display:block;color:var(--mute);font-size:12.5px;font-weight:700}.ihk b{font-family:Sora,"KU";font-size:19px;font-weight:800}
+.ihs{max-height:46vh;border:1px solid var(--line);border-radius:12px}
+td .rm{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;border:1px solid rgba(var(--rrgb),.3);background:rgba(var(--rrgb),.08);color:var(--red)}
+td .rm:hover{background:var(--red);color:var(--on-ink)}
+.kpi .kem{display:block;font-style:normal;color:var(--mute);font-size:13.5px;font-weight:700;margin-top:2px}
+.prod .pr{display:grid;line-height:1.15}.prod .pr small{font-size:12.5px;font-weight:700;color:var(--mute);letter-spacing:0}
 </style>
 </head>
 <body>
@@ -765,6 +828,6 @@ tr.sel td{background:rgba(var(--vrgb),.07)}
 
 
 
-<script src="app.js?v=3eae5e109590"></script>
+<script src="app.js?v=fcf755c44b2a"></script>
 </body>
 </html>
