@@ -340,7 +340,7 @@ td.en{text-align:left;font-weight:600}
 }
 .mrole{display:none}
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
-@media print{.side,.top,#view,.bgfx,#push,.acts{display:none!important}.modal{position:static;background:#fff;backdrop-filter:none}.sheet{background:#fff;color:#000;border:0;box-shadow:none}.sheet *{color:#000!important}}
+/* printing = the receipt slip only (see the block at the end of this file) */
 .bat i{direction:ltr}
 .mclose{display:none}
 @media (max-width:1100px){.mclose{display:inline-flex}.enter .pos>.cart{animation:none}}
@@ -593,6 +593,128 @@ main{padding-top:calc(22px + var(--sat))}
 .thpick .d{background:#06070A}.thpick .d:before{background:#F3F5F8}
 .thpick .l{background:#EDF0EA}.thpick .l:before{background:#161B13}
 .thpick button span{display:flex;align-items:center;gap:7px}
+
+/* ---------- cart: the other currency, the manager's price for one sale ---------- */
+.tot2{display:flex;justify-content:space-between;align-items:baseline;margin-top:-6px;color:var(--ink2);font-size:14.5px;font-weight:700}
+.tot2 b{font-family:Sora,"KU";font-size:18px;font-weight:800;color:var(--ink)}
+.qty button.lp{display:inline-flex;align-items:center;gap:6px;width:auto;height:auto;padding:4px 9px;border-radius:9px;background:none;border:1px dashed var(--line2);color:var(--ink2);font-size:14px;font-weight:700;line-height:1.4;transition:.2s var(--ease)}
+.qty button.lp:hover{background:none;border-color:var(--vt);color:var(--vt)}
+.qty button.lp:active{transform:none}
+.qty button.lp.on{border-style:solid;border-color:rgba(var(--argb),.5);background:rgba(var(--argb),.1);color:var(--amber)}
+.lp s{opacity:.7;font-weight:600}
+/* ---------- till: new / returned + warranty months on a line ---------- */
+.line .wchip{grid-column:1/-1;justify-self:right;margin-top:2px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;border:1px solid var(--line);background:var(--inset2);color:var(--mute);font-size:13px;font-weight:700;transition:.2s var(--ease)}
+.line .wchip:hover{border-color:var(--vt);color:var(--vt)}
+.line .wchip.set{color:var(--cyan);border-color:rgba(var(--crgb),.35);background:rgba(var(--crgb),.07)}
+.line .wchip.used{color:var(--amber);border-color:rgba(var(--argb),.4);background:rgba(var(--argb),.08)}
+.fl{font-size:14px;font-weight:700;color:var(--ink2);margin-bottom:6px}
+.wseg{display:flex}
+.wms{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.wms button{padding:10px 4px;border-radius:12px;border:1.5px solid var(--line2);background:var(--p2);font-weight:800;font-size:14.5px;transition:.2s var(--ease)}
+.wms button:hover{border-color:var(--vt)}
+.wms button.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+#wEnd{margin-top:4px}
+/* ---------- «گەڕاوە و زەمان» ---------- */
+.wk{grid-template-columns:repeat(4,1fr)}
+.wk .kpi small .dot{width:26px;height:26px;border-radius:9px}
+.wk .kpi em{display:block;font-style:normal;color:var(--mute);font-size:13.5px;font-weight:700;margin-top:2px}
+.whead{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:12px 16px;border-radius:14px;background:var(--inset);border:1px solid var(--line);font-size:14.5px;color:var(--ink2);margin-bottom:10px}
+.whead>b{font-size:18px;color:var(--ink)}.whead span b{color:var(--ink)}
+.wl{padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--p2);margin-top:10px;display:grid;gap:10px}
+.wl1{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.wl1>b{font-size:16px;direction:ltr;text-align:left;unicode-bidi:plaintext}
+.wl2{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--ink2);font-size:14.5px}.wl2 b{color:var(--ink)}
+.wl3{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.wl3>.tag{grid-column:1/-1;justify-self:start}
+.wbtn{display:grid;gap:2px;justify-items:start;text-align:start;padding:12px 16px;border-radius:14px;border:1.5px solid var(--line2);background:var(--p1);transition:.2s var(--ease)}
+.wbtn b{font-size:17px;font-weight:800}.wbtn small{font-size:13.5px;font-weight:700;color:var(--mute)}
+.wbtn.r b{color:var(--red)}.wbtn.g b{color:var(--green)}
+.wbtn.r:hover{border-color:rgba(var(--rrgb),.6);background:rgba(var(--rrgb),.07)}
+.wbtn.g:hover:not(:disabled){border-color:rgba(var(--grgb),.6);background:rgba(var(--grgb),.07)}
+.wbtn:disabled{opacity:.5;cursor:not-allowed}.wbtn:disabled b{color:var(--mute)}
+.wbar{margin-bottom:14px;flex-wrap:wrap;gap:10px}.wbar .inp{flex:1;min-width:240px;max-width:420px}
+.wbar .seg{flex-wrap:wrap}
+.wt td small{display:block;color:var(--mute);font-weight:700;font-size:13px}
+.wt .dfi{font-size:14px;line-height:1.55;min-width:220px;white-space:normal;direction:ltr;text-align:left}
+.wt .dfi .en{white-space:normal;overflow:visible;max-width:none}
+.wt .wwhy{white-space:normal;min-width:160px;max-width:300px}
+@media(max-width:760px){.wk{grid-template-columns:1fr 1fr}.wl3{grid-template-columns:1fr}.wms{grid-template-columns:repeat(4,1fr)}.wbar .inp{max-width:none}}
+/* ---------- cash: what the customer handed over ---------- */
+.due{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:2px 12px;padding:14px 16px;border-radius:16px;background:var(--inset);border:1px solid var(--line)}
+.due small{grid-column:1/-1;color:var(--mute);font-weight:700;font-size:14px}
+.due b{font-family:Sora,"KU";font-size:34px;font-weight:800;letter-spacing:-1px;color:var(--vt);line-height:1.15;justify-self:start}
+.due span{font-family:Sora,"KU";font-size:19px;font-weight:800;color:var(--ink)}
+.duep{margin:14px 0 10px;font-size:14.5px}
+.gotq{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
+.gotq button{display:grid;gap:3px;justify-items:center;padding:14px 8px;border-radius:16px;border:1.5px solid var(--line2);background:var(--p2);transition:.2s var(--ease)}
+.gotq button:hover{border-color:var(--vt);transform:translateY(-2px)}
+.gotq button:active{transform:scale(.97)}
+.gotq button b{font-family:Sora,"KU";font-size:19px;font-weight:800}
+.gotq small{font-size:13px;font-weight:800}
+.gotq small.ok{color:var(--green)}.gotq small.lo{color:var(--red)}.gotq small.hi{color:var(--amber)}
+.goth{display:flex;align-items:center;gap:12px;margin:18px 0 12px;color:var(--mute);font-size:13.5px;font-weight:700}
+.goth:before,.goth:after{content:"";flex:1;height:1px;background:var(--line2)}
+.gsum{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-radius:13px;background:var(--inset);border:1px solid var(--line);font-weight:700}
+.gsum.bad{border-color:rgba(var(--rrgb),.45)}
+.gwarn{color:var(--red);font-size:14px;font-weight:700;margin-top:8px}
+/* ---------- over / short section ---------- */
+.dfbar{margin-bottom:14px;flex-wrap:wrap;gap:10px}.dfbar select{width:auto;min-width:190px}
+.dfk{grid-template-columns:repeat(4,1fr)}
+.dfk .kpi small .dot{width:26px;height:26px;border-radius:9px}
+.dfk .kpi em{display:block;font-style:normal;color:var(--mute);font-size:13.5px;font-weight:700;margin-top:2px}
+b.dneg{color:var(--red)}b.dpos{color:var(--amber)}
+.dft td small{display:block;color:var(--mute);font-weight:700;font-size:13px}
+.dft .dfi{font-size:14px;line-height:1.55;min-width:220px;white-space:normal;direction:ltr;text-align:left}
+.dft .dfi .en{white-space:normal;overflow:visible;max-width:none}
+tr.sel td{background:rgba(var(--vrgb),.07)}
+@media(max-width:760px){.dfk{grid-template-columns:1fr 1fr}.dfbar select{flex:1}}
+/* ---------- the receipt slip: paper, so always black on white in both looks; sizes in mm / pt = what the printer makes ---------- */
+.rch{margin-bottom:12px}.rch h2{margin:0}
+.rcd{margin-top:12px;padding:10px 14px;border-radius:13px;background:var(--inset);border:1px solid var(--line);font-weight:700;font-size:14.5px}
+#rcP{display:inline-flex;align-items:center;gap:8px}
+.paper{background:#fff;border-radius:14px;padding:5mm 0;display:grid;justify-items:center;border:1px solid var(--line2);overflow:hidden}
+.slip{width:68mm;max-width:calc(100% - 16px);background:#fff;color:#000;font-family:"KU",Vazirmatn,sans-serif;font-size:10pt;font-weight:600;line-height:1.5;direction:rtl;text-align:right;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.slip *{color:#000!important;text-shadow:none!important}
+.slip .num,.slip .en{font-family:Sora,"KU",sans-serif}
+.slip .sh{text-align:center;padding-bottom:2.4mm;border-bottom:.45mm solid #000}
+.slip .sh img{display:block;width:34mm;height:34mm;margin:0 auto 1.2mm}
+.slip .sh h3{font-size:18pt;font-weight:900;line-height:1.25}
+.slip .sh small{display:block;font-family:Sora,sans-serif;font-size:7.5pt;font-weight:700;letter-spacing:.42em;margin:.3mm -.42em 0 0;direction:ltr}
+.slip .sh p{font-size:10pt;font-weight:800;margin-top:1mm}
+.slip .sh .sn{font-weight:600;font-size:9pt;margin-top:.3mm;line-height:1.45}
+.slip .sno{display:flex;justify-content:space-between;align-items:baseline;padding:2mm 0 1mm}
+.slip .sno span{font-size:11.5pt;font-weight:900}
+.slip .sno b{font-size:20pt;font-weight:800;letter-spacing:-.5px;line-height:1.1}
+.slip .sr{display:flex;justify-content:space-between;align-items:baseline;gap:3mm;font-size:9.5pt;padding:.3mm 0}
+.slip .sr b{font-weight:800;text-align:left}
+.slip .sl{margin-top:2mm;border-top:.45mm solid #000;border-bottom:.45mm solid #000}
+.slip .slh{display:flex;justify-content:space-between;font-size:8.5pt;font-weight:900;padding:1mm 0;border-bottom:.25mm solid #000}
+.slip .si{padding:1.5mm 0;border-bottom:.25mm dashed #000}.slip .si:last-child{border-bottom:0}
+.slip .si p{font-family:Sora,"KU",sans-serif;font-weight:700;font-size:9.5pt;line-height:1.35;direction:ltr;text-align:left;unicode-bidi:plaintext;overflow-wrap:anywhere}
+.slip .si div{display:flex;justify-content:space-between;align-items:baseline;direction:ltr;font-size:9.5pt;margin-top:.5mm}
+.slip .si div b{font-size:10.5pt;font-weight:800}
+.slip .si s{font-weight:600}
+.slip .si i{display:block;font-style:normal;font-size:8.5pt;font-weight:800;margin-top:.3mm}
+.slip .sd{padding-top:1.4mm}
+.slip .st{margin:2.2mm 0 1.8mm;padding:1.4mm 2.6mm 1.6mm;border:.55mm solid #000;border-radius:2.2mm}
+.slip .st div{display:flex;justify-content:space-between;align-items:baseline}
+.slip .st div:first-child span{font-size:12.5pt;font-weight:900}
+.slip .st div:first-child b{font-size:21pt;font-weight:800;letter-spacing:-.5px;line-height:1.2}
+.slip .st div+div{border-top:.25mm dashed #000;margin-top:1mm;padding-top:1mm;font-size:10pt;font-weight:800}
+.slip .st div+div b{font-size:12.5pt;font-weight:800}
+.slip .sb{text-align:center;margin-top:2.6mm;padding-top:3mm;border-top:.45mm solid #000}
+.slip .sb svg{display:block;height:11mm;max-width:100%;margin:0 auto}
+.slip .sb rect{fill:#000}
+.slip .sb small{display:block;font-size:8.5pt;font-weight:700;letter-spacing:.34em;margin:.8mm -.34em 0 0}
+.slip .sf{text-align:center;font-size:8.5pt;font-weight:700;margin-top:2.4mm;line-height:1.55}
+.slip .sf2{text-align:center;font-size:11.5pt;font-weight:900;margin-top:.8mm}
+#print{display:none}
+@media print{
+  html,body{background:#fff!important;height:auto!important;min-height:0!important;width:auto!important;margin:0!important;padding:0!important;overflow:visible!important;position:static!important}
+  body>*:not(#print){display:none!important}
+  #print{display:block!important;background:#fff}
+  #print .slip{margin:0 auto;padding:3mm 0 2mm;max-width:none}
+}
 </style>
 </head>
 <body>
@@ -624,9 +746,10 @@ main{padding-top:calc(22px + var(--sat))}
 <div id="charge"></div>
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
+<div id="print" aria-hidden="true"></div>
 
 
 
-<script src="app.js?v=bf500ee75bf9"></script>
+<script src="app.js?v=7b2b30b4b181"></script>
 </body>
 </html>
