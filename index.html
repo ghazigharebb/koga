@@ -624,11 +624,16 @@ main{padding-top:calc(22px + var(--sat))}
 .wl1{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .wl1>b{font-size:16px;direction:ltr;text-align:left;unicode-bidi:plaintext}
 .wl2{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--ink2);font-size:14.5px}.wl2 b{color:var(--ink)}
-.wl3{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.wl3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
 .wl3>.tag{grid-column:1/-1;justify-self:start}
 .wbtn{display:grid;gap:2px;justify-items:start;text-align:start;padding:12px 16px;border-radius:14px;border:1.5px solid var(--line2);background:var(--p1);transition:.2s var(--ease)}
 .wbtn b{font-size:17px;font-weight:800}.wbtn small{font-size:13.5px;font-weight:700;color:var(--mute)}
-.wbtn.r b{color:var(--red)}.wbtn.g b{color:var(--green)}
+.wbtn.r b{color:var(--red)}.wbtn.g b{color:var(--green)}.wbtn.c b{color:var(--cyan)}
+.wbtn.c:hover{border-color:rgba(var(--crgb),.6);background:rgba(var(--crgb),.07)}
+.sohit{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;padding:9px 12px;margin-bottom:6px;border-radius:12px;border:1.5px solid var(--line2);background:var(--p2);font-size:14px;font-weight:700;text-align:start}
+.sohit .en{text-align:left;white-space:normal}.sohit.on{border-color:var(--vt);background:rgba(var(--vrgb),.08)}
+.sosum{margin-top:8px;padding:12px 14px;border-radius:14px;background:var(--inset);border:1px solid var(--line)}
+.sonet b{font-size:17px}.sonet small{display:block;font-size:13px;color:var(--mute);font-weight:700;text-align:left}
 .wbtn.r:hover{border-color:rgba(var(--rrgb),.6);background:rgba(var(--rrgb),.07)}
 .wbtn.g:hover:not(:disabled){border-color:rgba(var(--grgb),.6);background:rgba(var(--grgb),.07)}
 .wbtn:disabled{opacity:.5;cursor:not-allowed}.wbtn:disabled b{color:var(--mute)}
@@ -760,6 +765,6 @@ tr.sel td{background:rgba(var(--vrgb),.07)}
 
 
 
-<script src="app.js?v=6d322a6cca02"></script>
+<script src="app.js?v=3eae5e109590"></script>
 </body>
 </html>

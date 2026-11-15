@@ -239,6 +239,18 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       st.exchanges.unshift(x);
       log(st, u.name, b, now, 'swap', `گۆڕینی زەمانەت — پسولەی <b class="num">#${sale.no}</b>: ${esc(l.name)} ×${n} — ${esc(why)}`);
     }],
+    swapOther: [2, (st, u, p, now) => { // the customer brings a piece back and leaves with a DIFFERENT item: one return + one new receipt, both or neither
+      if (!Array.isArray(p.lines) || !p.lines.length || p.lines.length > 20) throw new Err(BAD);
+      const go = s => {
+        const old = saleOf(s, p.no), r = A.return[1](s, u, { branch: p.branch, no: p.no, qty: p.qty, why: p.why }, now);
+        const n = A.sell[1](s, u, { branch: p.branch, type: old.type, pay: old.pay === 'debt' ? 'debt' : 'cash', customer: old.customer, lines: p.lines.map(l => ({ id: l && l.id, qty: l && l.qty, sn: l && l.sn == null ? undefined : l && l.sn, w: l && l.w == null ? undefined : l && l.w })) }, now);
+        const ns = s.sales.find(x => x.no === n.no); ns.swapOf = old.no; old.rets[old.rets.length - 1].swapTo = ns.no;
+        log(s, u.name, ns.branch, now, 'swap', `گۆڕین بە کاڵایەکی تر — پسولەی <b class="num">#${old.no}</b> ← پسولەی نوێ <b class="num">#${ns.no}</b>: گەڕاوە ${money(s, r.refund)} · نوێ ${money(s, n.total)} · ${n.total >= r.refund ? 'کڕیار دەیدات' : 'بۆ کڕیار دەگەڕێتەوە'} ${money(s, Math.abs(n.total - r.refund))}`);
+        return { no: ns.no, from: old.no, refund: r.refund, total: n.total };
+      };
+      go(JSON.parse(JSON.stringify(st)));   // rehearsal on a copy: if the new sale cannot happen, the return must not happen either
+      return go(st);
+    }],
     receive: [2, (st, u, p, now) => {
       const b = br(st, u, p), it = item(st, p.id), n = p.qty;
       if (!it || !it.bc) throw new Err('سەرەتا بارکۆدێکی دروست سکان بکە');
@@ -864,7 +876,7 @@ function drawGrid() {
 /* ---------- barcode scanner: works on every screen, no click on the search box needed ----------
    A scanner is a very fast keyboard that ends with Enter. The physical key is read (not the letter), so a Kurdish or
    Arabic keyboard layout cannot garble the code. */
-const SCAN_BOX = '#q,#rNo,#wrNo,#wSn,#vBc,#nBc,#bBc,#jQ';                 // boxes that are meant to be scanned into
+const SCAN_BOX = '#q,#rNo,#wrNo,#wSn,#soBc,#vBc,#nBc,#bBc,#jQ';                 // boxes that are meant to be scanned into
 const slipCode = no => '77' + String(no).padStart(6, '0');     // the code printed as a barcode on every receipt
 const slipNo = v => { const m = /^77(\d{6,9})$/.exec(latin(v == null ? '' : v).trim()); return m && S.sales.some(x => x.no === +m[1]) ? +m[1] : v; };
 function openBought(sale, sn) { // a slip or a serial was scanned: straight to «گەڕاوە و زەمان» with that purchase (the seller only sees the receipt)
@@ -1175,9 +1187,9 @@ V.warranty = (no) => {
   const lineCard = (l, i) => { const w = wState(sale, l), can = l.qty - l.ret;
     return `<div class="wl ${warSn && (l.sn || []).includes(warSn) ? 'hit' : ''}"><div class="wl1"><b class="en">${esc(l.name)}</b><div class="row">${kindTag(l)}${wTag(sale, l)}</div></div>
       <div class="wl2"><span>فرۆشراو <b class="num">${l.qty}</b></span><span>گەڕاوەتەوە <b class="num">${l.ret}</b></span><span>گۆڕدراوە <b class="num">${l.exch || 0}</b></span><span>نرخ ${money(l.price)}</span><span>${w.none ? 'بێ زەمان فرۆشراوە' : `زەمان <b class="num">${Core.lineW(l)}</b> مانگ · تا <b class="num">${D8(w.end)}</b>`}</span>${(l.sn || []).length ? `<span>سریاڵ ${l.sn.map(n => `<b class="num sn ${n === warSn ? 'on' : ''}">${esc(n)}</b>`).join(' ')}</span>` : ''}</div>
-      <div class="wl3">${can > 0 ? `<button class="wbtn r" data-tb="${i}"><b>گەڕاوە</b><small>کاڵاکە وەردەگیرێتەوە و پارەکەی دەدرێتەوە</small></button><button class="wbtn g" data-sw="${i}" ${w.ok ? '' : 'disabled'}><b>نوێ</b><small>${w.ok ? 'بە زەمان، دانەیەکی نوێی پێ دەدرێت' : w.none ? 'ئەم کاڵایە زەمانی نییە' : 'زەمانەکەی بەسەرچووە'}</small></button>` : '<span class="tag n">هەموو دانەکانی گەڕاونەتەوە</span>'}</div></div>`; };
+      <div class="wl3">${can > 0 ? `<button class="wbtn r" data-tb="${i}"><b>گەڕاوە</b><small>کاڵاکە وەردەگیرێتەوە و پارەکەی دەدرێتەوە</small></button><button class="wbtn g" data-sw="${i}" ${w.ok ? '' : 'disabled'}><b>نوێ</b><small>${w.ok ? 'بە زەمان، دانەیەکی نوێی پێ دەدرێت' : w.none ? 'ئەم کاڵایە زەمانی نییە' : 'زەمانەکەی بەسەرچووە'}</small></button><button class="wbtn c" data-so="${i}"><b>کاڵایەکی تر</b><small>ئەمە وەردەگیرێتەوە و کاڵایەکی جیاوازی پێ دەدرێت</small></button>` : '<span class="tag n">هەموو دانەکانی گەڕاونەتەوە</span>'}</div></div>`; };
   const tabs = [['sold', 'کاڵا فرۆشراوەکان و زەمانیان', sold.length], ['ret', 'گەڕاوەکان', rets.length], ['swap', 'گۆڕین بە نوێ', S.exchanges.length]];
-  const body = warTab === 'ret' ? (rets.length ? `<table class="wt"><tr><th>کات</th><th>پسولە</th><th>کاڵا</th><th>پارەی گەڕاوە</th><th>چۆن</th><th>کێ</th><th>لق</th><th>هۆکار</th></tr>${rets.slice(0, 150).map(({ s, r }) => `<tr><td>${when(r.t)}</td><td>${noBtn(s.no)}</td><td class="dfi">${r.items ? r.items.map(x => `<span class="num">${x.qty} ×</span> <span class="en">${esc(x.name)}</span>`).join('<br>') : '<span class="mute">—</span>'}</td><td>${money(r.amt)}</td><td>${r.fib ? payTag('fib') : s.pay === 'debt' && !r.cash ? payTag('debt') : payTag('cash')}</td><td class="en"><b>${esc(r.by || '')}</b></td><td>${esc(S.branches[r.branch] || '')}</td><td class="wwhy">${esc(r.why || '')}</td></tr>`).join('')}</table>` : '<div class="empty"><b>هێشتا هیچ کاڵایەک نەگەڕاوەتەوە</b></div>')
+  const body = warTab === 'ret' ? (rets.length ? `<table class="wt"><tr><th>کات</th><th>پسولە</th><th>کاڵا</th><th>پارەی گەڕاوە</th><th>چۆن</th><th>کێ</th><th>لق</th><th>هۆکار</th></tr>${rets.slice(0, 150).map(({ s, r }) => `<tr><td>${when(r.t)}</td><td>${noBtn(s.no)}</td><td class="dfi">${r.items ? r.items.map(x => `<span class="num">${x.qty} ×</span> <span class="en">${esc(x.name)}</span>`).join('<br>') : '<span class="mute">—</span>'}</td><td>${money(r.amt)}${r.swapTo ? `<small>گۆڕدرا بە ${noBtn(r.swapTo)}</small>` : ''}</td><td>${r.fib ? payTag('fib') : s.pay === 'debt' && !r.cash ? payTag('debt') : payTag('cash')}</td><td class="en"><b>${esc(r.by || '')}</b></td><td>${esc(S.branches[r.branch] || '')}</td><td class="wwhy">${esc(r.why || '')}</td></tr>`).join('')}</table>` : '<div class="empty"><b>هێشتا هیچ کاڵایەک نەگەڕاوەتەوە</b></div>')
     : warTab === 'swap' ? (S.exchanges.length ? `<table class="wt"><tr><th>کات</th><th>پسولە</th><th>کاڵا</th><th>دانە</th><th>کێ</th><th>لق</th><th>کێشەی کاڵاکە</th></tr>${S.exchanges.slice(0, 150).map(x => `<tr><td>${when(x.t)}</td><td>${noBtn(x.no)}</td><td class="dfi"><span class="en">${esc(nameOf(S.sales.find(s => s.no === x.no), x.id))}</span></td><td class="num"><b>${x.qty}</b></td><td class="en"><b>${esc(x.by)}</b></td><td>${esc(S.branches[x.branch] || '')}</td><td class="wwhy">${esc(x.why)}</td></tr>`).join('')}</table>` : '<div class="empty"><b>هێشتا هیچ کاڵایەک بە زەمان نەگۆڕدراوە</b></div>')
     : (rows.length ? `<table class="wt"><tr><th>فرۆشتن</th><th>پسولە</th><th>کاڵا</th><th>جۆر</th><th>زەمان</th><th>تا کەی</th><th>دۆخ</th><th>کڕیار</th></tr>${rows.slice(0, 150).map(({ s, l }) => { const w = wState(s, l); return `<tr><td>${when(s.t)}</td><td>${noBtn(s.no)}</td><td class="dfi"><span class="num">${l.qty} ×</span> <span class="en">${esc(l.name)}</span>${(l.sn || []).length ? `<small class="num">S/N ${l.sn.map(esc).join(' · ')}</small>` : ''}${l.ret ? ` <span class="tag r">گەڕاوەتەوە <span class="num">${l.ret}</span></span>` : ''}${l.exch ? ` <span class="tag b">گۆڕدراوە <span class="num">${l.exch}</span></span>` : ''}</td><td>${kindTag(l)}</td><td>${w.none ? '—' : `<span class="num">${Core.lineW(l)}</span> مانگ`}</td><td class="num">${w.none ? '—' : D8(w.end)}</td><td>${wTag(s, l)}</td><td class="en">${esc(cn(s)) || '<span class="mute">—</span>'}</td></tr>`; }).join('')}</table>${rows.length > 150 ? `<p class="mute" style="padding:12px 16px">تەنها <span class="num">150</span> دوایین دانە پیشان دراون؛ بۆ کۆنتر بگەڕێ.</p>` : ''}` : `<div class="empty"><b>${q ? 'هیچ شتێک نەدۆزرایەوە' : 'هێشتا هیچ کاڵایەک نەفرۆشراوە'}</b></div>`);
   $('#view').innerHTML = `<div class="kgrid wk"><div class="card kpi"><small><span class="dot r">${ico('returns', 15)}</span>گەڕاوەی ئەم مانگە</small><b class="num" id="wkRet">${mRets.length}</b><em>${money(mRets.reduce((a, x) => a + x.r.amt, 0))} دراوەتەوە</em></div><div class="card kpi"><small><span class="dot b">${ico('shield', 15)}</span>گۆڕین بە نوێ (ئەم مانگە)</small><b class="num" id="wkSw">${mEx.reduce((a, x) => a + x.qty, 0)}</b><em>دانە بە زەمان گۆڕدراوە</em></div><div class="card kpi"><small><span class="dot g">${ico('check', 15)}</span>زەمانی چالاک</small><b class="num" id="wkLive">${live.toLocaleString('en-US')}</b><em>کاڵای فرۆشراو کە هێشتا زەمانی ماوە</em></div><div class="card kpi"><small><span class="dot a">${ico('alert', 15)}</span>دانەی خراپ</small><b class="num">${faulty.toLocaleString('en-US')}</b><em>بە زەمان وەرگیراونەتەوە</em></div></div>
@@ -1193,6 +1205,7 @@ V.warranty = (no) => {
   vw.querySelectorAll('[data-wt]').forEach(b => b.onclick = () => { warTab = b.dataset.wt; V.warranty(); });
   vw.querySelectorAll('[data-wo]').forEach(b => b.onclick = () => { V.warranty(b.dataset.wo); window.scrollTo(0, 0); });
   vw.querySelectorAll('[data-tb]').forEach(b => b.onclick = () => takeBack(sale, +b.dataset.tb));
+  vw.querySelectorAll('[data-so]').forEach(b => b.onclick = () => swapOther(sale, +b.dataset.so));
   vw.querySelectorAll('[data-sw]').forEach(b => b.onclick = () => exchange(sale, sale.lines[+b.dataset.sw]));
   const wq = $('#wrQ'); if (wq) wq.oninput = () => { warQ = wq.value; V.warranty(); const n = $('#wrQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
 };
@@ -1208,6 +1221,25 @@ function takeBack(sale, i) { // «گەڕاوە»: the piece comes back into stoc
   const sum = () => { const r = Core.refundCalc(sale, qty()); $('#tbSum').innerHTML = r ? money(r.refund) : '<span class="tag r">لە فرۆشراو زیاترە</span>'; $('#tbOk').disabled = !r || !r.n; };
   $('#tbQ').oninput = sum; sum(); $('#tbNo').onclick = closeModal;
   $('#tbOk').onclick = () => run('return', { no: sale.no, qty: qty(), why: $('#tbW').value.trim() }, () => { closeModal(); toast('وەرگیرایەوە؛ کۆگا نوێ کرایەوە'); V.warranty(sale.no); shell(); });
+}
+function swapOther(sale, i) { // «کاڵایەکی تر»: this piece comes back, a different item leaves on a new receipt; only the difference changes hands
+  const l = sale.lines[i], can = l.qty - l.ret, b = S.branch, P = it => sale.type === 'wholesale' ? it.w : it.r; let pick = null;
+  modal(`<h2>گۆڕین بە کاڵایەکی تر</h2><p class="en" style="text-align:left;font-weight:700;margin-bottom:4px">${esc(l.name)}</p>
+    <p class="mute" style="margin-bottom:12px">پسولەی <span class="num">#${sale.no}</span>. ئەم کاڵایە دەچێتەوە کۆگا و کاڵا نوێیەکە لە ${esc(S.branches[b])} دەدرێت، بە پسولەیەکی نوێ.</p>
+    <div class="row"><label class="f" style="width:160px"><span>چەند دانە (زۆرترین <span class="num">${can}</span>)</span><input class="inp num" id="soQ" type="text" inputmode="numeric" value="1" autocomplete="off"></label><label class="f grow">هۆکار (پێویستە)<input class="inp" id="soW" maxlength="200" placeholder="بۆ نموونە: جۆرێکی تری دەوێت" autocomplete="off"></label></div>
+    <label class="f">کاڵا نوێیەکە — بارکۆدەکەی سکان بکە یان ناوەکەی بنووسە<input class="inp" id="soBc" autocomplete="off"></label>
+    <div id="soHits"></div><div id="soSum"></div>
+    <div class="acts"><button class="btn volt" id="soOk" disabled>گۆڕین</button><button class="ghost" id="soNo">پاشگەزبوونەوە</button></div>`);
+  const n = () => Math.floor(pn($('#soQ').value) || 0), qty = () => ({ [i]: n() });
+  const sum = () => { const r = Core.refundCalc(sale, qty()), k = n(), okQ = r && r.n > 0, np = pick ? P(pick) * k : 0, bad = pick && (!(P(pick) > 0) ? 'ئەم کاڵایە نرخی نییە' : k > pick.s[b] ? 'لە ' + S.branches[b] + ' تەنها ' + pick.s[b] + ' دانە ماوە' : pick.id === l.id ? 'ئەمە هەمان کاڵایە؛ بۆ هەمان کاڵا دوگمەی «نوێ» بەکاربهێنە' : '');
+    $('#soOk').disabled = !okQ || !pick || !!bad;
+    $('#soSum').innerHTML = !okQ ? '<div class="gsum bad"><span>بڕی دانەکان دروست نییە</span></div>' : !pick ? '' : bad ? `<p class="gwarn">${esc(bad)}</p>` : `<div class="rc sosum"><div class="row sp"><span>دەگەڕێتەوە (${esc(l.name)} <span class="num">×${k}</span>)</span><b>${money(r.refund)}</b></div><div class="row sp"><span>کاڵا نوێیەکە (${esc(pick.name)} <span class="num">×${k}</span>)</span><b>${money(np)}</b></div><hr><div class="row sp sonet"><b>${np >= r.refund ? 'کڕیار دەبێت بیدات' : 'بۆ کڕیار دەگەڕێتەوە'}</b><b class="num">${USD(Math.abs(np - r.refund))} <small>${DIN(payDinar(Math.abs(np - r.refund)))}</small></b></div>${sale.pay === 'fib' ? '<p class="mute" style="font-size:13.5px;margin-top:6px">پسولە کۆنەکە بە FIB بووە: پارەی گەڕاوەکەی بە FIB دەگەڕێتەوە و کاڵا نوێیەکە بە کاش وەردەگیرێت.</p>' : sale.pay === 'debt' ? '<p class="mute" style="font-size:13.5px;margin-top:6px">پسولە کۆنەکە بە قەرز بووە: جیاوازییەکە لەسەر قەرزی کڕیار هەژمار دەکرێت.</p>' : ''}</div>`; };
+  const find = () => { const v = $('#soBc').value.trim(), lo = v.toLowerCase(), ex = v && S.items.filter(x => x.bc && x.bc.toLowerCase() === lo), hits = !v ? [] : ex.length ? ex : S.items.filter(x => x.name.toLowerCase().includes(lo)).slice(0, 6);
+    if (hits.length === 1 && ex.length === 1) pick = hits[0]; else if (pick && !hits.includes(pick)) pick = null;
+    $('#soHits').innerHTML = hits.map(x => `<button class="sohit ${pick === x ? 'on' : ''}" data-sp="${x.id}"><span class="en">${esc(x.name)}</span><span>${money(P(x))} · <span class="num">${x.s[b]}</span> دانە</span></button>`).join('') || (v ? '<p class="gwarn">هیچ کاڵایەک نەدۆزرایەوە</p>' : '');
+    document.querySelectorAll('[data-sp]').forEach(e => e.onclick = () => { pick = item(+e.dataset.sp); find(); }); sum(); };
+  $('#soBc').oninput = find; $('#soQ').oninput = sum; $('#soNo').onclick = closeModal; sum();
+  $('#soOk').onclick = () => run('swapOther', { no: sale.no, qty: qty(), why: $('#soW').value.trim(), lines: [{ id: pick.id, qty: n() }] }, r => { closeModal(); toast('گۆڕدرا؛ پسولەی نوێ #' + r.no); V.warranty(sale.no); shell(); const ns = S.sales.find(x => x.no === r.no); if (ns) receipt(ns); });
 }
 
 /* ---------- items & stock ---------- */
