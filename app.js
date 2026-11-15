@@ -88,6 +88,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       target: 100000, sales: [], expenses: [], payments: [], purchases: [], exchanges: [], approvals: [], log: [], unread: {}, nextNo: 20001, nextId: 200, tz: 180
     };
     reprice(st);   // dinar-priced items get today's dollar price
+    addPlatforms(st, ['ئایبازار', 'لەزوو', 'تەڵەبات']);   // where online orders come from (sold on credit to the platform)
     return st;
   }
 
@@ -162,8 +163,9 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       const b = br(st, u, p), lines = cartLines(st, p.lines, p.type, u), type = p.type, pay = p.pay;
       if (!has(PAY, pay)) throw new Err(BAD);
       if (!lines.length) throw new Err('سەبەتەکە بەتاڵە');
-      const needCust = type === 'wholesale' || pay === 'debt', cu =   // delivery and online: the seller is known, the buyer is a phone number
+      const needCust = type === 'wholesale' || type === 'online' || pay === 'debt', cu =   // delivery and online: the seller is known, the buyer is a phone number
        needCust ? st.customers.find(c => c.id === p.customer) : null;
+      if (type === 'online' && (!cu || !cu.plat)) throw new Err('بۆ ئۆنلاین یەکێک لە شوێنەکان هەڵبژێرە (ئایبازار، لەزوو، تەڵەبات…)');
       if (needCust && !cu) throw new Err(pay === 'debt' ? 'بۆ فرۆشتن بە قەرز دەبێت کڕیار هەڵبژێریت' : 'بۆ ' + TYPES[type] + ' دەبێت کڕیار هەڵبژێریت');
       if (pay === 'fib' && !p.fibOk) throw new Err('سەرەتا دڵنیابە پارەکە لە FIB گەیشتووە و نیشانەکە دابنێ');
       if (pay === 'fib' && str(p.fibRef, 60).length < 3) throw new Err('ژمارەی مامەڵەی FIB بنووسە (لە ئەپی FIB دەردەکەوێت)');
@@ -183,8 +185,12 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
         disc = p.disc;
       }
       const total = sub - disc;
-      const ph = cleanPhone(p.phone), bn = str(p.buyer, 60);   // who bought, when the seller typed it
-      if (p.phone != null && p.phone !== '' && !(ph.length >= 7 && ph.length <= 15)) throw new Err('ژمارەی مۆبایلی کڕیار دروست نییە');
+      let rawPh = p.phone == null ? '' : String(p.phone), rawBn = p.buyer == null ? '' : String(p.buyer);
+      const isNum = s => /^[\s0-9٠-٩۰-۹+\-()]{7,}$/.test(s);
+      if (rawPh.trim() && !/[0-9٠-٩۰-۹]/.test(rawPh)) { const nm = rawPh; rawPh = isNum(rawBn) ? rawBn : ''; rawBn = isNum(rawBn) || !rawBn.trim() ? nm : rawBn; }   // a name in the phone box (boxes swapped)
+      else if (!rawPh.trim() && isNum(rawBn)) { rawPh = rawBn; rawBn = ''; }                                                   // a number in the name box
+      const ph = cleanPhone(rawPh), bn = str(rawBn, 60);   // who bought, when the seller typed it
+      if (ph && !(ph.length >= 7 && ph.length <= 15)) throw new Err('ژمارەی مۆبایلی کڕیار دروست نییە (دەبێت 7 تا 15 ژمارە بێت)');
       let got = null, df = null;
       if (pay === 'cash' && p.got != null) { // what the customer really handed over: every dinar over or short is written down with the seller's name
         const g = p.got; if (typeof g !== 'object' || ![g.usd || 0, g.iqd || 0].every(n => Number.isInteger(n) && n >= 0)) throw new Err(AMT);
@@ -197,6 +203,13 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       }
       const sale = { no: st.nextNo++, t: now, branch: b, by: u.name, rate: st.rate, type, pay, fibRef: pay === 'fib' ? str(p.fibRef, 60) : '', customer: needCust ? cu.id : null, lines: lines.map(l => { const o = { id: l.it.id, name: l.it.name, qty: l.qty, price: l.price, cost: l.it.c == null ? null : l.it.c, ret: 0, w: l.w }; if (l.list != null) o.list = l.list; if (l.used) o.used = true; if (l.sn.length) o.sn = l.sn; if (l.pd != null) o.pd = l.pd; return o; }), sub, disc, total, refunded: 0 };
       if (got) { sale.got = got; sale.diffD = df.d; sale.diffC = df.c; }
+      if (got && p.tend && typeof p.tend === 'object') {
+        const tu = p.tend.usd || 0, td = p.tend.iqd || 0;
+        if (![tu, td].every(n => Number.isInteger(n) && n >= 0 && n <= 1e9)) throw new Err(AMT);
+        const dueD = got.iqd ? got.iqd + dinar(st.rate, got.usd) : null, tD = td + dinar(st.rate, tu);
+        const chD = dueD != null ? tD - dueD : Math.round((tD - dinar(st.rate, total)) / 250) * 250, chC = Math.round((tu + td * 100 / st.rate) - total);
+        if ((tu || td) && chC >= 0) { sale.tend = { usd: tu, iqd: td }; sale.chgC = Math.max(0, chC); sale.chgD = Math.max(0, chD); }
+      }
       sale.dn = !disc && lines.every(l => l.pd != null) ? lines.reduce((a, l) => a + l.qty * l.pd, 0) : payDinar(st.rate, total);   // what it costs in dinar on this day
       if (ph) sale.phone = ph; if (bn) sale.buyer = bn;
       lines.forEach(l => l.it.s[b] -= l.qty);
@@ -293,8 +306,8 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       const d = /^\d{4}-\d\d-\d\d$/.test(p.d || '') ? p.d : isoD(st, now);   // the day the goods came in (may be typed for an older delivery)
       if (!Number.isInteger(n) || n < 1 || n > QMAX) throw new Err(AMT);
       let cost = it.c == null ? null : it.c;
-      if (p.cost !== undefined) { // the buying price is the manager's alone
-        if (u.role !== 'owner') throw new Err(OWNER_ONLY);
+      if (p.cost !== undefined) { // the manager's and the supervisor's to write; only the manager ever sees it
+        if (LV[u.role] < 2) throw new Err(OWNER_ONLY);
         if (!Number.isInteger(p.cost) || !(p.cost >= 0)) throw new Err('نرخی کڕین دروست نییە');
         cost = it.c = p.cost;
       }
@@ -319,7 +332,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       if (!Number.isInteger(r) || !Number.isInteger(w) || !(r > 0) || w < 0) throw new Err('نرخی تاک بنووسە');
       if (w > r) throw new Err('نرخی جوملە نابێت لە تاک زیاتر بێت');
       const s0 = st.branches.map((x, k) => { const n = Array.isArray(p.s) ? p.s[k] || 0 : 0; if (!Number.isInteger(n) || n < 0 || n > QMAX) throw new Err(AMT); return n; });
-      if (p.c != null) { if (u.role !== 'owner') throw new Err(OWNER_ONLY); if (!Number.isInteger(p.c) || p.c < 0) throw new Err('نرخی کڕین دروست نییە'); }
+      if (p.c != null) { if (LV[u.role] < 2) throw new Err(OWNER_ONLY); if (!Number.isInteger(p.c) || p.c < 0) throw new Err('نرخی کڕین دروست نییە'); }
       const it = { id: st.nextId++, name, bc, r, w, s: s0, cat: str(p.cat, 60) || cats[0] || '' }; if (p.c != null) it.c = p.c; if (rd0 > 0) it.rd = rd0; if (wd0 > 0) it.wd = wd0;
       st.items.unshift(it); const b = br(st, u, p), d = isoD(st, now);
       s0.forEach((n, k) => { if (n) st.purchases.unshift({ t: now, by: u.name, branch: k, id: it.id, name, qty: n, cost: it.c == null ? null : it.c, retail: r, d }); });
@@ -399,6 +412,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       if (!PHONE_OK(phone)) throw new Err('ژمارەی مۆبایل تەنها ژمارەی تێدا بێت');
       if (phone && st.customers.some(c => c.phone === phone)) throw new Err('ئەم ژمارەیە پێشتر تۆمار کراوە');
       const c = { id: st.nextId++, name, phone, addr: str(p.addr), debt: 0 };
+      if (p.plat) { if (u.role !== 'owner') throw new Err(OWNER_ONLY); c.plat = true; }
       st.customers.unshift(c); log(st, u.name, b, now, 'cust', `کڕیاری نوێ: ${esc(name)}`);
       return { id: c.id };
     }],
@@ -585,6 +599,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
     st.items.forEach(i => { delete i.f; const x = si.get(i.id); if (x) { i.s = x.s.slice(); i.r = cents(x.r); i.w = cents(x.w); } });
     st.customers.forEach(c => { const x = sc.get(c.id); c.debt = x ? cents(x.debt) : 0; });
   }
+  function addPlatforms(st, names) { let n = 0; (names || []).forEach(nm => { if (!st.customers.some(c => c.name === nm)) { st.customers.push({ id: st.nextId++, name: nm, phone: '', addr: '', debt: 0, plat: true }); n++; } else st.customers.find(c => c.name === nm).plat = true; }); return n; }
   function importOld(st, rows, now) {
     let add = 0, fix = 0;
     (rows || []).forEach(x => {
@@ -607,7 +622,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       branches: st.branches, shop: st.shop || { note: '' }, cur: st.cur, rate: st.rate, rates: st.rates, target: st.target, tz: st.tz == null ? 180 : st.tz, adjusted: st.adjusted || 0, jardAdj: st.jardAdj || 0,
       items: own ? st.items : st.items.map(i => cut(i, 'c')),
       customers: st.customers,
-      team: st.team.map(t => { const o = { name: t.name, role: t.role, branch: t.branch }; if (t.role !== 'owner' && (own || t.name === u.name)) { o.pct = t.pct; o.salary = t.salary; o.salaryCur = t.salaryCur; } if (own) o.pw = !!t.pw; return o; }),
+      team: st.team.map(t => { const o = { name: t.name, role: t.role, branch: t.branch }; if (t.role !== 'owner' && (own || t.name === u.name || (lv === 2 && t.role === 'staff'))) { o.pct = t.pct; o.salary = t.salary; o.salaryCur = t.salaryCur; } if (own) o.pw = !!t.pw; return o; }),
       sales: own ? st.sales : st.sales.map(s => ({ ...s, lines: s.lines.map(l => cut(l, 'cost')) })),
       expenses: lv > 1 ? st.expenses : [],
       payments: st.payments,
@@ -617,7 +632,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       log: st.log.filter(e => e.toUser ? (own || e.toUser === u.name) : (e.to === 'all' || lv > 1)),
       unread: { [u.name]: st.unread[u.name] || 0 },
       jards: lv > 1 ? st.jards : st.jards.filter(j => j.by === u.name),
-      ledger: own ? st.ledger : st.ledger.filter(x => x.to === u.name),
+      ledger: own ? st.ledger : st.ledger.filter(x => x.to === u.name || (lv === 2 && (acct(st, x.to) || {}).role === 'staff')),
       notes: own ? st.notes : st.notes.filter(n => n.to === 'all' || (Array.isArray(n.to) && n.to.includes(u.name))),
       closes: lv > 1 ? (st.closes || []) : (st.closes || []).filter(c => c.by === u.name).map(c => ({ id: c.id, t: c.t, by: c.by, branch: c.branch, counted: c.counted, note: c.note })) // staff never learn what the system expected
     };
@@ -636,7 +651,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
     if (st.unread && from in st.unread) { st.unread[to] = (st.unread[to] || 0) + st.unread[from]; delete st.unread[from]; }
     return true;
   }
-  return { Err, LV, ROLE, TYPES, PAY, LK, SHARED, ACTIONS, init, apply, project, rename, resetActivity, cashExpected, till, cashDiff, dinar, payDinar, dueDinar, reprice, centsOf, importOld, cleanPhone, UNDO_MS, SN_OK, cleanSn, gotTxt, SHORT_MAX, OVER_MAX, W_DEF, W_MAX, lineW, warrantyEnd, wTxt, log, moves, refundCalc, fmtMoney, fmtCur, iqd, esc, cents, ms, isoD, dayStart, pctTxt };
+  return { Err, LV, ROLE, TYPES, PAY, LK, SHARED, ACTIONS, init, apply, project, rename, resetActivity, cashExpected, till, cashDiff, dinar, payDinar, dueDinar, reprice, centsOf, importOld, addPlatforms, cleanPhone, UNDO_MS, SN_OK, cleanSn, gotTxt, SHORT_MAX, OVER_MAX, W_DEF, W_MAX, lineW, warrantyEnd, wTxt, log, moves, refundCalc, fmtMoney, fmtCur, iqd, esc, cents, ms, isoD, dayStart, pctTxt };
 });
 
 // online mode: public address + public (anon) key only. No secret belongs in this file.
@@ -1032,12 +1047,10 @@ function drawGrid() { // the product list as ONE piece: a row per item with ever
   const G = $('#grid'); G.className = 'grid alt'; G.parentElement.classList.add('one');
   G.innerHTML = list.length ? `<div class="gr">${list.map(i => {
     const st = i.s[b], p = priceOf(i), bad = st <= 0 || p <= 0, ic = catIcon(i.cat), tot = i.s.reduce((a, n) => a + Math.max(0, n), 0), lv = st <= 0 ? 'z' : st <= 5 ? 'l' : 'k';
-    const din = p > 0 ? DIN(Core.dueDinar(S, [{ id: i.id, qty: 1 }], S.cart.type, 0)) : '', whd = i.w > 0 ? DIN(i.wd > 0 ? i.wd : payDinar(i.w)) : '', sold = (mv[i.id] || { sold: 0 }).sold;
+    const din = p > 0 ? DIN(Core.dueDinar(S, [{ id: i.id, qty: 1 }], S.cart.type, 0)) : '';
     return `<button class="prod gi s-${lv} ${bad ? 'out' : ''}" data-id="${i.id}">${thumb(i, 28)}
-      <span class="gm"><b class="en nm">${esc(i.name)}</b>
-        <small><span class="num gbc bc">${esc(i.bc) || '— بێ بارکۆد'}</span><span class="tag n">${esc(i.cat)}</span>${i.w > 0 ? `<span>جوملە <b class="num">${USD(i.w)}</b> · <b class="num">${whd}</b></span>` : ''}<span>ئەمڕۆ فرۆشراو <b class="num">${sold}</b></span></small>
-        <span class="gbar"><i style="width:${st > 0 ? Math.max(4, Math.min(100, Math.round(st / Math.max(1, tot) * 100))) : 0}%"></i></span>
-        <small>${S.branches.map((nm, k) => `<span class="${k === b ? 'stk gme ' + lv : ''}">${esc(nm)} <b class="num">${i.s[k]}</b></span>`).join('')}<span>کۆ <b class="num">${tot}</b></span>${st <= 0 ? '<span class="tag r">نەماوە</span>' : st <= 5 ? '<span class="tag a">کەمبووە</span>' : ''}</small></span>
+      <span class="gm"><b class="en nm">${esc(i.name)}</b><span class="num gbc bc">${esc(i.bc) || '— بێ بارکۆد'}</span>
+        <small><span class="tag n">${esc(i.cat)}</span><span class="gtot">کۆ <b class="num">${tot.toLocaleString('en-US')}</b> دانە</span>${st <= 0 ? `<span class="tag r">${tot > 0 ? 'لەم لقە نەماوە' : 'نەماوە'}</span>` : st <= 5 ? `<span class="tag a">لەم لقە تەنها <span class="num">${st}</span> دانە</span>` : ''}</small></span>
       <span class="gp pr">${p > 0 ? `${money(p)}<small class="num">${S.cur === 'IQD' ? USD(p) : din}</small>` : '<span class="tag r">نرخی نییە</span>'}</span><span class="gadd">+</span></button>`;
   }).join('')}</div>` : `<div class="empty"><b>هیچ کاڵایەک نەدۆزرایەوە</b>ناو یان بارکۆدێکی تر تاقی بکەوە</div>`;
   document.querySelectorAll('#grid .prod').forEach(x => x.onclick = () => addLine(+x.dataset.id, 1, x));
@@ -1045,7 +1058,7 @@ function drawGrid() { // the product list as ONE piece: a row per item with ever
 /* ---------- barcode scanner: works on every screen, no click on the search box needed ----------
    A scanner is a very fast keyboard that ends with Enter. The physical key is read (not the letter), so a Kurdish or
    Arabic keyboard layout cannot garble the code. */
-const SCAN_BOX = '#q,#rNo,#wrNo,#wSn,#soBc,#gfQ,#iQ,#csQ,#vBc,#nBc,#bBc,#jQ';                 // boxes that are meant to be scanned into
+const SCAN_BOX = '#q,#rNo,#wrNo,#wSn,#soBc,#gfQ,#iQ,#csQ,#slQ,#vBc,#nBc,#bBc,#jQ';                 // boxes that are meant to be scanned into
 const slipCode = no => '77' + String(no).padStart(6, '0');     // the code printed as a barcode on every receipt
 const slipNo = v => { const m = /^77(\d{6,9})$/.exec(latin(v == null ? '' : v).trim()); return m && S.sales.some(x => x.no === +m[1]) ? +m[1] : v; };
 function openBought(sale, sn) { // a slip or a serial was scanned: straight to «گەڕاوە و زەمان» with that purchase (the seller only sees the receipt)
@@ -1137,18 +1150,20 @@ function drawCart() {
   if (req && req.status === 'ok') c.disc = req.amt;
   if (req && req.status === 'no') { c.req = null; c.disc = 0; }
   const disc = Math.min(c.disc, sub), total = sub - disc, waiting = req && req.status === 'wait';
-  const needCust = c.type === 'wholesale' || c.pay === 'debt';
+  if (c.type === 'online') c.pay = 'debt';   // online orders are on credit to the platform
+  const needCust = c.type === 'wholesale' || c.type === 'online' || c.pay === 'debt', plats = S.customers.filter(x => x.plat);
   $('#cart').innerHTML = `<div class="cart-h"><div class="row sp"><h2>سەبەتە</h2><div class="row"><span class="tag n cart-count"><span class="num">${c.lines.reduce((a, l) => a + l.qty, 0)}</span> دانە</span><button class="ghost sm mclose" id="cartX">داخستن</button></div></div>
       <div class="seg" style="margin-top:12px">${Object.entries(TYPES).map(([k, v]) => `<button data-t="${k}" class="grow ${c.type === k ? 'on' : ''}">${v}</button>`).join('')}</div>
-      ${needCust ? `<select class="inp" id="cust" style="margin-top:10px"><option value="">— کڕیار هەڵبژێرە —</option>${S.customers.map(x => `<option value="${x.id}" ${c.customer === x.id ? 'selected' : ''}>${esc(x.name)}${x.phone ? ' · ' + esc(x.phone) : ''}</option>`).join('')}</select>` : ''}</div>
+      ${c.type === 'online' ? `<div class="plats">${plats.map(x => `<button data-pl="${x.id}" class="${c.customer === x.id ? 'on' : ''}">${esc(x.name)}</button>`).join('') || '<span class="mute">هیچ شوێنێکی ئۆنلاین تۆمار نەکراوە</span>'}</div><p class="mute plnote">بە قەرز لەسەر ئەو شوێنە تۆمار دەکرێت</p>`
+        : needCust ? `<div class="row custrow"><select class="inp grow" id="cust"><option value="">— کڕیار هەڵبژێرە —</option>${S.customers.filter(x => !x.plat).map(x => `<option value="${x.id}" ${c.customer === x.id ? 'selected' : ''}>${esc(x.name)}${x.phone ? ' · ' + esc(x.phone) : ''}</option>`).join('')}</select><button class="ghost sm" id="custNew" title="کڕیاری نوێ بە ناو و ژمارە">+ نوێ</button></div>` : ''}</div>
     <div class="cart-lines">${c.lines.map(l => { const it = item(l.id), p = linePrice(l), lp = priceOf(it), sp = p !== lp; return `<div class="line ${S.lastAdd === l.id ? 'new' : ''}"><div class="nm lnm">${thumb(it, 16, 'sm')}<span>${esc(it.name)}</span></div><b>${money(l.qty * p)}</b><div class="qty"><button data-m="${l.id}">−</button><b class="num">${l.qty}</b><button data-p="${l.id}">+</button>${isOwner() ? `<button class="lp ${sp ? 'on' : ''}" data-lp="${l.id}" title="گۆڕینی نرخی ئەم فرۆشتنە">× ${money(p)}${sp ? `<s>${money(lp)}</s>` : ''}${ico('edit', 13)}</button>` : `<small class="mute">× ${money(p)}</small>`}</div><button class="rm" data-x="${l.id}" title="لابردن" aria-label="لابردن">${ico('trash', 17)}</button><button class="wchip ${l.used ? 'used' : ''} ${l.w != null && l.w !== Core.W_DEF ? 'set' : ''}" data-wl="${l.id}" title="نوێ یان گەڕاوە، و ماوەی زەمان">${ico('shield', 14)}<span>${l.used ? 'گەڕاوە' : 'نوێ'} · ${Core.wTxt(Core.lineW(l))}</span></button>${(l.sn || []).map((n, k) => `<button class="snchip" data-sn="${l.id}:${k}" title="لابردنی ئەم سریاڵە"><span class="num">S/N ${esc(n)}</span><i>×</i></button>`).join('')}${(l.sn || []).length < l.qty ? `<button class="snadd ${c.snFor === l.id ? 'on' : ''}" data-sa="${l.id}">${c.snFor === l.id ? 'ئێستا سریاڵی سەر کاڵاکە سکان بکە…' : '+ سریاڵ'}</button>` : ''}</div>`; }).join('') || `<div class="empty"><b>سەبەتەکە بەتاڵە</b>کاڵایەک سکان بکە یان لەسەری دابگرە${(s => canUndo(s) ? `<button class="ghost sm lastsale" data-ls="${s.no}">${ico('returns', 15)}دوایین فرۆشتن <span class="num">#${s.no}</span> — بینین / پەشیمانبوونەوە</button>` : '')(S.sales.find(x => x.by === S.me && !x.legacy))}</div>`}</div>
     <div class="cart-f">
       ${disc || waiting ? `<div class="row sp"><span>کۆی پێش داشکاندن</span>${money(sub)}</div><div class="row sp"><span>داشکاندن ${waiting ? '<span class="tag a">چاوەڕوانی ڕەزامەندیی بەڕێوەبەر</span>' : '<span class="tag g">ڕەزامەندی دراوە</span>'}</span><span>− ${money(waiting ? req.amt : disc)}</span></div>` : ''}
       <div class="tot"><span>کۆی گشتی</span><b class="num" id="totB">${fmtMoney(total)}</b></div>
       ${c.lines.length ? `<div class="tot2"><span>${S.cur === 'IQD' ? 'بە دۆلار' : 'بە دینار'}</span><b class="num" id="totO">${S.cur === 'IQD' ? USD(total) : DIN(cartDinar())}</b></div>` : ''}
-      <div class="pay">${Object.keys(PAY).map(k => `<button data-pay="${k}" class="${c.pay === k ? 'on' : ''}">${PAY[k][1]}</button>`).join('')}</div>
+      <div class="pay" ${c.type === 'online' ? 'hidden' : ''}>${Object.keys(PAY).map(k => `<button data-pay="${k}" class="${c.pay === k ? 'on' : ''}">${PAY[k][1]}</button>`).join('')}</div>
       ${c.pay === 'fib' ? `<div class="fibbox"><input class="inp num" id="fibRef" placeholder="ژمارەی مامەڵەی FIB (پێویستە)" value="${esc(c.fibRef)}" autocomplete="off"><label class="chk"><input type="checkbox" id="fibOk" ${c.fibOk ? 'checked' : ''}><span>پارەکەم لە ئەپی FIB بینی و گەیشتووە</span></label></div>` : ''}
-      ${needCust ? '' : `<div class="row buyer"><input class="inp num grow" id="byPh" inputmode="tel" autocomplete="off" placeholder="مۆبایلی کڕیار" value="${esc(c.phone || '')}"><input class="inp grow" id="byNm" autocomplete="off" placeholder="ناوی کڕیار" value="${esc(c.buyer || '')}"></div>`}
+      ${needCust ? '' : `<div class="row buyer"><input class="inp num grow" id="byPh" type="tel" inputmode="tel" autocomplete="off" placeholder="مۆبایلی کڕیار (ژمارە)" value="${esc(c.phone || '')}"><input class="inp grow" id="byNm" autocomplete="off" placeholder="ناوی کڕیار" value="${esc(c.buyer || '')}"></div>`}
       <div class="row">${isOwner() ? `<button class="ghost grow" id="discBtn" ${!c.lines.length || waiting ? 'disabled' : ''}>داشکاندن</button>` : ''}<button class="ghost ${isOwner() ? '' : 'grow'}" id="clearBtn" ${!c.lines.length ? 'disabled' : ''}>بەتاڵکردن</button></div>
       <button class="btn volt big" id="sellBtn" ${!c.lines.length || waiting ? 'disabled' : ''}>${waiting ? 'چاوەڕوانی ڕەزامەندی…' : 'فرۆشتن'}</button></div>`;
   const C = $('#cart'), tb = $('#totB'), prev = S.prevTotal || 0; S.lastAdd = null;
@@ -1162,6 +1177,9 @@ function drawCart() {
   C.querySelectorAll('[data-pay]').forEach(b => b.onclick = () => { c.pay = b.dataset.pay; if (c.pay !== 'fib') { c.fibOk = false; c.fibRef = ''; } drawCart(); });
   if ($('#fibRef')) { $('#fibRef').oninput = e => c.fibRef = e.target.value.trim(); $('#fibOk').onchange = e => c.fibOk = e.target.checked; }
   if ($('#cust')) $('#cust').onchange = e => c.customer = +e.target.value || null;
+  C.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { c.customer = +b.dataset.pl; drawCart(); });
+  if ($('#custNew')) $('#custNew').onclick = () => { modal(`<h2>کڕیاری نوێ</h2><label class="f">ناو<input class="inp" id="kN" autocomplete="off"></label><label class="f">مۆبایل<input class="inp num" id="kP" type="tel" inputmode="tel" autocomplete="off"></label><div class="acts"><button class="btn" id="kOk">دروستکردن و هەڵبژاردن</button><button class="ghost" id="kNo">پاشگەزبوونەوە</button></div>`);
+    $('#kNo').onclick = closeModal; $('#kOk').onclick = () => run('newCustomer', { name: $('#kN').value.trim(), phone: $('#kP').value.trim(), addr: '' }, r => { closeModal(); c.customer = r.id; drawCart(); toast('کڕیار تۆمار کرا و هەڵبژێردرا'); }); };
   if ($('#byPh')) { $('#byPh').oninput = e => { c.phone = e.target.value.trim(); const k = buyerOf(c.phone); if (k && !c.buyer) { c.buyer = k; $('#byNm').value = k; } }; $('#byNm').oninput = e => c.buyer = e.target.value.trim(); }
   $('#clearBtn').onclick = () => { voidReq(); S.cart = newCart(); drawGrid(); drawCart(); };
   if ($('#discBtn')) $('#discBtn').onclick = () => askDiscount(sub);
@@ -1246,12 +1264,13 @@ function undoSale(s) { // «پەشیمانبوونەوە»: for 10 minutes the s
 function sell(needCust) {
   const c = S.cart; if (!c.lines.length) return;
   const sub = subTotal(), total = sub - Math.min(c.disc, sub);
-  const send = got => run('sell', { type: c.type, pay: c.pay, fibRef: c.fibRef, fibOk: c.fibOk, customer: c.customer, lines: c.lines.map(l => { const o = { id: l.id, qty: l.qty }; if (l.price != null) o.price = l.price; if (l.w != null) o.w = l.w; if (l.used) o.used = true; if (l.sn && l.sn.length) o.sn = l.sn; return o; }), disc: c.req ? 0 : c.disc, req: c.req, got, phone: needCust ? '' : c.phone, buyer: needCust ? '' : c.buyer }, r => {
+  const send = (got, tend) => run('sell', { type: c.type, pay: c.pay, fibRef: c.fibRef, fibOk: c.fibOk, customer: c.customer, lines: c.lines.map(l => { const o = { id: l.id, qty: l.qty }; if (l.price != null) o.price = l.price; if (l.w != null) o.w = l.w; if (l.used) o.used = true; if (l.sn && l.sn.length) o.sn = l.sn; return o; }), disc: c.req ? 0 : c.disc, req: c.req, got, tend, phone: needCust ? '' : c.phone, buyer: needCust ? '' : c.buyer }, r => {
     const sale = S.sales.find(s => s.no === r.no);
     closeModal(); S.cart = newCart(); S.q = ''; S.prevTotal = 0; render(); charge(sale, () => receipt(sale));
   });
+  if (needCust && !c.customer) return toast(c.type === 'online' ? 'شوێنی ئۆنلاین هەڵبژێرە (ئایبازار، لەزوو، تەڵەبات…)' : 'بۆ ' + TYPES[c.type] + ' دەبێت کڕیار هەڵبژێریت', 1);
   if (c.pay !== 'cash') return send();
-  if (needCust && !c.customer) return toast('بۆ ' + TYPES[c.type] + ' دەبێت کڕیار هەڵبژێریت', 1);
+
   if (total <= 0) return send({ usd: 0, iqd: 0 });
   takeCash(total, send, cartDinar());
 }
@@ -1266,7 +1285,8 @@ function takeCash(total, send, dn) {
     <div class="gotq"><button data-g="usd"><small>بە دۆلار</small><b class="num">${USD(total)}</b></button><button data-g="iqd"><small>بە دینار</small><b class="num">${DIN(dn)}</b></button></div>
     <div class="acts"><button class="ghost" id="gNo">پاشگەزبوونەوە</button></div>`);
   const G = { usd: { usd: total, iqd: 0 }, iqd: { usd: 0, iqd: dn } };
-  document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { closeModal(); send(G[b.dataset.g]); });
+  const given = () => { const u = pn($('#cU').value), d = pn($('#cD').value, true), o = { usd: u > 0 ? Math.round(u * 100) : 0, iqd: d > 0 ? Math.round(d) : 0 }; return o.usd || o.iqd ? o : undefined; };
+  document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { const tnd = given(); closeModal(); send(G[b.dataset.g], tnd); });
   $('#gNo').onclick = closeModal;
   const calc = () => { const u = pn($('#cU').value), d = pn($('#cD').value, true), gc = (u > 0 ? Math.round(u * 100) : 0) + (d > 0 ? Math.round(d / S.rate * 100) : 0), ch = gc - total;
     if (!gc) return $('#cOut').innerHTML = '';
@@ -1303,10 +1323,10 @@ function slip(s) { // always black on white and in dollars + dinar, whatever the
     <div class="sno"><span>پسوڵەی فرۆشتن</span><b class="num">#${s.no}</b></div>
     <div class="smeta">${row('بەروار و کات', `<span class="num">${D(d)} · ${d.toTimeString().slice(0, 5)}</span>`)}${row('فرۆشیار', `<span class="en">${esc(s.by)}</span>`)}${row('جۆری فرۆشتن', TYPES[s.type])}${cu ? row('کڕیار', `<span class="en">${esc(cu.name)}</span>`) : ''}${!cu && (s.buyer || s.phone) ? row('کڕیار', `<span class="en">${esc([s.buyer, s.phone].filter(Boolean).join(' · '))}</span>`) : ''}</div>
     ${s.legacy ? '<p class="sf">ئەم پسوڵەیە لە سیستەمە کۆنەکە تۆمار کراوە؛ وردەکاریی کاڵاکانی لەوێیە.</p>' : `<div class="sl"><div class="slh"><span>کاڵا</span><span>نرخ</span></div>
-    ${s.lines.map(l => `<div class="si"><p>${esc(l.name)}</p><div><span class="num">${l.qty} × ${USD(l.price)}${l.list != null && l.list > l.price ? ` <s>${USD(l.list)}</s>` : ''}</span><b class="num">${USD(l.qty * l.price)}</b></div><i>${(w => `${l.used ? 'گەڕاوە · ' : ''}${w.none ? 'بێ زەمان' : `زەمان <span class="num">${Core.lineW(l)}</span> مانگ · تا <span class="num">${D(w.end)}</span>`}`)(wState(s, l))}</i>${(l.sn || []).length ? `<i class="ssn">S/N ${l.sn.map(esc).join(' · ')}</i>` : ''}${l.ret ? `<i>گەڕێنراوەتەوە: <span class="num">${l.ret}</span> دانە</i>` : ''}</div>`).join('')}</div>`}
+    ${s.lines.map(l => `<div class="si"><p>${esc(l.name)}</p><div><span class="num">${l.qty} × ${USD(l.price)}${l.list != null && l.list > l.price ? ` <s>${USD(l.list)}</s>` : ''}</span></div><i>${(w => `${l.used ? 'گەڕاوە · ' : ''}${w.none ? 'بێ زەمان' : `زەمان <span class="num">${Core.lineW(l)}</span> مانگ · تا <span class="num">${D(w.end)}</span>`}`)(wState(s, l))}</i>${(l.sn || []).length ? `<i class="ssn">S/N ${l.sn.map(esc).join(' · ')}</i>` : ''}${l.ret ? `<i>گەڕێنراوەتەوە: <span class="num">${l.ret}</span> دانە</i>` : ''}</div>`).join('')}</div>`}
     ${s.disc ? `<div class="smeta sd">${row('کۆی پێش داشکاندن', `<span class="num">${USD(s.sub)}</span>`)}${row('داشکاندن', `<span class="num">− ${USD(s.disc)}</span>`)}</div>` : ''}
     <div class="st"><div><span>کۆی گشتی</span><b class="num">${USD(s.total)}</b></div>${s.rate ? `<div><span>بە دینار</span><b class="num">${DIN(s.dn != null ? s.dn : payDinar(s.total, s.rate))}</b></div>` : ''}</div>
-    <div class="smeta">${row('شێوازی پارەدان', PAY[s.pay][1])}${s.got && (s.got.usd || s.got.iqd) ? row('وەرگیراو', `<span class="num">${Core.gotTxt(s.got)}</span>`) : ''}${s.fibRef ? row('ژمارەی مامەڵەی FIB', `<span class="num">${esc(s.fibRef)}</span>`) : ''}${s.refunded ? row('گەڕێنراوەتەوە', `<span class="num">${USD(s.refunded)}</span>`) : ''}${s.rate ? row('نرخی دۆلار', `<span class="num">100$ = ${(s.rate * 100).toLocaleString('en-US')} د.ع</span>`) : ''}</div>
+    <div class="smeta">${row('شێوازی پارەدان', PAY[s.pay][1])}${s.tend ? row('وەرگیراو', `<span class="num">${Core.gotTxt(s.tend)}</span>`) + row('باقی', `<span class="num">${s.got && s.got.iqd || s.tend.iqd ? DIN(s.chgD) : USD(s.chgC)}</span>`) : s.got && (s.got.usd || s.got.iqd) ? row('وەرگیراو', `<span class="num">${Core.gotTxt(s.got)}</span>`) : ''}${s.fibRef ? row('ژمارەی مامەڵەی FIB', `<span class="num">${esc(s.fibRef)}</span>`) : ''}${s.refunded ? row('گەڕێنراوەتەوە', `<span class="num">${USD(s.refunded)}</span>`) : ''}</div>
     <div class="sb">${barcode(slipCode(s.no))}<small class="num">${slipCode(s.no)}</small></div>
     <p class="sf">گەڕاندنەوە و زەمانەت تەنها بەم پسوڵەیە دەکرێت<br>تکایە بیپارێزە</p><p class="sf2">سوپاس بۆ کڕینەکەت</p></div>`;
 }
@@ -1516,7 +1536,7 @@ function receive() {
   const own = isOwner();
   modal(`<h2>داخیلکردنی کاڵا — ${esc(S.branches[S.branch])}</h2><p class="mute" style="margin-bottom:12px">بارکۆدەکەی سکان بکە، یان ناوی بابەتەکە بنووسە و هەڵیبژێرە.</p>
     <div class="row"><label class="f grow">بارکۆد یان ناوی بابەت<input class="inp" id="vBc" placeholder="سکان بکە یان بنووسە" autocomplete="off"></label><label class="f" style="width:170px">بەرواری هاتن<input class="inp num" id="vD" type="date" value="${isoD(new Date())}"></label></div><div id="vHit" style="margin-bottom:12px"></div>
-    <div class="row"><label class="f grow">بڕ (دانە)<input class="inp num" id="vQty" type="text" inputmode="decimal" min="1" step="1" inputmode="numeric"></label>${own ? `<label class="f grow">نرخی کڕینی یەک دانە ${CUR()}<input class="inp num" id="vCost" type="text" inputmode="decimal" min="0" step="0.01" inputmode="decimal"></label>` : ''}</div>
+    <div class="row"><label class="f grow">بڕ (دانە)<input class="inp num" id="vQty" type="text" inputmode="decimal" min="1" step="1" inputmode="numeric"></label><label class="f grow"><span>نرخی کڕینی یەک دانە ${CUR()}</span><input class="inp num" id="vCost" type="text" inputmode="decimal" placeholder="${own ? '' : 'تەنها بەڕێوەبەر دەیبینێت'}"></label></div>
     <div id="vSum"></div>
     <div class="acts"><button class="btn volt" id="vOk">داخیلکردن</button><button class="ghost" id="vNo">پاشگەزبوونەوە</button></div>`);
   let pick = null;
@@ -1528,9 +1548,9 @@ function receive() {
     if ($('#vPick')) $('#vPick').onchange = e => { pick = item(+e.target.value) || null; preset(); sum(); };
     preset(); sum(); };
   const preset = () => { if (own && pick && pick.c != null && $('#vCost').value === '') $('#vCost').value = amtOut(pick.c); };
-  $('#vBc').oninput = find; $('#vQty').oninput = sum; if (own) $('#vCost').oninput = sum; $('#vNo').onclick = closeModal;
+  $('#vBc').oninput = find; $('#vQty').oninput = sum; $('#vCost').oninput = sum; $('#vNo').onclick = closeModal;
   $('#vOk').onclick = () => { const p = { id: pick ? pick.id : null, qty: +$('#vQty').value, d: $('#vD').value };
-    if (own && $('#vCost').value.trim() !== '') p.cost = toC($('#vCost').value);
+    if ($('#vCost').value.trim() !== '') p.cost = toC($('#vCost').value);
     run('receive', p, () => { closeModal(); toast('داخیل کرا'); V.items(); }); };
 }
 const catList = () => `<datalist id="cats">${[...new Set(S.items.map(i => i.cat))].map(c => `<option value="${esc(c)}">`).join('')}</datalist>`;
@@ -1541,12 +1561,19 @@ function newItem() { // «داخیلکردنی بابەت»: by hand, the barcod
     <div class="row"><label class="f grow">پۆل<input class="inp" id="nCat" list="cats" autocomplete="off" placeholder="بۆ نموونە: کێبڵ">${catList()}</label><label class="f grow">بارکۆد (ئارەزوومەندانە)<input class="inp num" id="nBc" autocomplete="off"></label></div>
     <div class="row"><label class="f grow">نرخی تاک بە دینار (جێگیر)<input class="inp num" id="nRd" type="text" inputmode="numeric" placeholder="بۆ نموونە 35,000"></label><label class="f grow">نرخی جوملە بە دینار<input class="inp num" id="nWd" type="text" inputmode="numeric"></label></div>
     <p class="mute" style="margin:-6px 0 10px;font-size:13.5px">ئەگەر نرخەکە بە دینار بنووسیت، دۆلارەکەی هەموو ڕۆژێک بە نرخی دۆلار خۆی هەژمار دەکرێت. تەنها ئەگەر کاڵاکە بە دۆلار نرخی جێگیرە، خانەکانی خوارەوە پڕ بکەوە.</p>
-    <div class="row"><label class="f grow">نرخی تاک ${CUR()}<input class="inp num" id="nR" type="text" inputmode="decimal"></label><label class="f grow">نرخی جوملە ${CUR()}<input class="inp num" id="nW" type="text" inputmode="decimal"></label>${own ? `<label class="f grow">نرخی کڕین ${CUR()}<input class="inp num" id="nC" type="text" inputmode="decimal"></label>` : ''}</div>
-    <div class="row">${S.branches.map((x, k) => `<label class="f grow"><span>دانە لە ${esc(x)}</span><input class="inp num nS" data-k="${k}" type="text" inputmode="numeric" placeholder="0"></label>`).join('')}</div>
+    <div class="row"><label class="f grow">نرخی تاک ${CUR()}<input class="inp num" id="nR" type="text" inputmode="decimal"></label><label class="f grow">نرخی جوملە ${CUR()}<input class="inp num" id="nW" type="text" inputmode="decimal"></label><label class="f grow"><span>نرخی کڕین ${CUR()}</span><input class="inp num" id="nC" type="text" inputmode="decimal" placeholder="${own ? 'سعری هاتن' : 'تەنها بەڕێوەبەر دەیبینێت'}"></label></div>
+    <label class="f nqty"><span>چەند دانە هاتووە؟</span><input class="inp num" id="nQ" type="text" inputmode="numeric" placeholder="0"></label>
+    <div class="row nsplit">${S.branches.map((x, k) => `<label class="f grow"><span>بۆ ${esc(x)}</span><input class="inp num nS" data-k="${k}" type="text" inputmode="numeric" placeholder="0"></label>`).join('')}</div><p class="mute" id="nSplitNote" style="font-size:13.5px;margin:-4px 0 8px">هەمووی دەچێتە ${esc(S.branches[S.branch])}؛ ئەگەر دەتەوێت بەشێکی بۆ لقەکەی تر بێت، لێرە دابەشی بکە.</p>
     <div class="acts"><button class="btn volt" id="nOk">داخیلکردن</button><button class="ghost" id="nNo">پاشگەزبوونەوە</button></div>`);
   $('#nNo').onclick = closeModal;
-  $('#nOk').onclick = () => { const dv = s => { const v = $(s).value.trim(); return v === '' ? 0 : Math.round(pn(v, true)); }, p = { name: $('#nName').value.trim(), bc: $('#nBc').value.trim(), cat: $('#nCat').value.trim(), rd: dv('#nRd'), wd: dv('#nWd'), r: $('#nR').value.trim() === '' ? 0 : toC($('#nR').value), w: $('#nW').value.trim() === '' ? 0 : toC($('#nW').value), s: [...document.querySelectorAll('.nS')].map(x => Math.floor(pn(x.value) || 0)) };
-    if (own && $('#nC').value.trim() !== '') p.c = toC($('#nC').value);
+  const nS = () => [...document.querySelectorAll('.nS')], nQ = () => Math.max(0, Math.floor(pn($('#nQ').value) || 0));
+  const spread = changed => { const q = nQ(), b = S.branch, others = nS().filter(x => +x.dataset.k !== b), mineEl = nS().find(x => +x.dataset.k === b);   // the rest always lands in this branch
+    if (changed === mineEl) { const rest = q - (Math.floor(pn(mineEl.value) || 0)); if (others.length === 1) others[0].value = Math.max(0, rest); }
+    else { const given = others.reduce((a, x) => a + (Math.floor(pn(x.value) || 0)), 0); mineEl.value = Math.max(0, q - given); }
+    const sum = nS().reduce((a, x) => a + (Math.floor(pn(x.value) || 0)), 0); $('#nSplitNote').innerHTML = sum === q ? `دابەشکراوە: ${S.branches.map((x, k) => esc(x) + ' <b class="num">' + (Math.floor(pn(nS()[k].value) || 0)) + '</b>').join(' · ')}` : `<span class="tag r">کۆی دابەشکراو (<span class="num">${sum}</span>) لەگەڵ ژمارەی هاتوو (<span class="num">${q}</span>) وەک یەک نییە</span>`; };
+  $('#nQ').oninput = () => spread(null); nS().forEach(x => x.oninput = () => spread(x));
+  $('#nOk').onclick = () => { if (nS().reduce((a, x) => a + (Math.floor(pn(x.value) || 0)), 0) !== nQ()) return toast('ژمارەی دابەشکراو لەگەڵ ژمارەی هاتوو وەک یەک نییە', 1); const dv = s => { const v = $(s).value.trim(); return v === '' ? 0 : Math.round(pn(v, true)); }, p = { name: $('#nName').value.trim(), bc: $('#nBc').value.trim(), cat: $('#nCat').value.trim(), rd: dv('#nRd'), wd: dv('#nWd'), r: $('#nR').value.trim() === '' ? 0 : toC($('#nR').value), w: $('#nW').value.trim() === '' ? 0 : toC($('#nW').value), s: [...document.querySelectorAll('.nS')].map(x => Math.floor(pn(x.value) || 0)) };
+    if ($('#nC').value.trim() !== '') p.c = toC($('#nC').value);
     run('newItem', p, () => { closeModal(); toast('بابەتەکە داخیل کرا'); V.items(); }); };
 }
 function editItem(it) { // name, kind, barcode, selling prices and the true number of pieces — for the manager and the supervisor
@@ -1784,10 +1811,10 @@ V.perf = () => {
       <div class="chips" style="margin:0">${Object.entries(RANGES).map(([k, v]) => `<button class="chip ${S.range.key === k ? 'on' : ''}" data-rg="${k}">${v}</button>`).join('')}</div>
       <div class="row"><span class="mute">لە</span><input class="inp num" type="date" id="pFrom" value="${S.range.from}" style="width:auto"><span class="mute">تا</span><input class="inp num" type="date" id="pTo" value="${S.range.to}" style="width:auto"></div></div>
     ${mine}${podium}
-    <div class="card scroll"><table><tr><th>پلە</th><th>ناو</th><th>ئاست</th><th>پسولە</th><th style="min-width:230px">فرۆش</th>${own ? '<th>ڕێژە</th><th>سوود</th><th>مووچە</th><th>کۆی پارەدان</th><th></th>' : ''}</tr>
+    <div class="card scroll"><table><tr><th>پلە</th><th>ناو</th><th>ئاست</th><th>پسولە</th><th style="min-width:230px">فرۆش</th>${own || lvl() === 2 ? `<th>ڕێژە</th><th>سوود</th><th>مووچە</th><th>کۆی پارەدان</th>${own ? '<th></th>' : ''}` : ''}</tr>
     ${rows.map((r, i) => `<tr class="${r.u.name === me().name ? 'me' : ''}"><td><span class="medal m${r.net > 0 ? Math.min(i + 1, 4) : 4} num">${i + 1}</span></td><td><b class="en">${esc(r.u.name)}</b></td><td><span class="tag ${r.u.role === 'sup' ? 'b' : 'n'}">${ROLE[r.u.role]}</span></td><td class="num">${r.n}</td>
       <td><div class="row"><b class="num" style="min-width:86px" data-net="${esc(r.u.name)}">${fmtMoney(r.net)}</b><div class="duel grow" style="margin:0"><div class="bar"><i style="width:${r.net / mx * 100}%"></i></div></div></div></td>
-      ${own ? `<td><span class="tag ${r.u.pct != null ? 'g' : 'n'} num">${pctTxt(r.u.pct)}</span></td><td><b class="num" data-com="${esc(r.u.name)}">${fmtMoney(r.com)}</b></td><td class="num">${r.u.salary != null ? fmtCur(r.u.salary, r.u.salaryCur) : '<span class="mute">—</span>'}</td><td><b class="num" style="color:var(--vt)">${fmtMoney(salC(r.u) + r.com)}</b></td><td><div class="row"><button class="ghost sm" data-pe="${esc(r.u.name)}">دانان</button><button class="ghost sm" data-po="${esc(r.u.name)}">پارەدان</button></div></td>` : ''}</tr>`).join('')}</table></div>
+      ${own || lvl() === 2 ? `<td><span class="tag ${r.u.pct != null ? 'g' : 'n'} num">${pctTxt(r.u.pct)}</span></td><td><b class="num" data-com="${esc(r.u.name)}">${fmtMoney(r.com)}</b></td><td class="num">${r.u.salary != null ? fmtCur(r.u.salary, r.u.salaryCur) : '<span class="mute">—</span>'}</td><td><b class="num" style="color:var(--vt)">${fmtMoney(salC(r.u) + r.com)}</b></td>${own ? `<td><div class="row"><button class="ghost sm" data-pe="${esc(r.u.name)}">دانان</button><button class="ghost sm" data-po="${esc(r.u.name)}">پارەدان</button></div></td>` : ''}` : ''}</tr>`).join('')}</table></div>
     ${own ? `<div class="row sp card pad" style="margin-top:14px"><span>کۆی ئەوەی بۆ ئەم ماوەیە دەبێت بیدەیت (مووچە + سوود)</span><b class="num" id="payAll" style="font-size:23px;color:var(--vt)">${fmtMoney(rows.reduce((a, r) => a + salC(r.u) + r.com, 0))}</b></div>` : ''}${ledgerHtml()}`;
   $('#view').querySelectorAll('[data-rg]').forEach(b => b.onclick = () => { setRange(b.dataset.rg); render(true); });
   const rg = () => { let f = $('#pFrom').value, t = $('#pTo').value; if (!f || !t) return; if (f > t) [f, t] = [t, f]; S.range = { key: '', from: f, to: t }; render(true); };
@@ -1906,11 +1933,11 @@ V.jard = () => {
   const done = Object.keys(cnt).length, diffs = Object.entries(cnt).filter(([id, n]) => n !== item(+id).s[b]).length;
   const subs = S.jards.filter(j => lvl() > 1 || j.by === me().name), d0 = Core.dayStart(S, new Date()), myCloses = (S.closes || []).filter(c => c.by === S.me && c.branch === b && Core.ms(c.t) >= d0);
   $('#view').innerHTML = `<div class="kgrid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
-      <div class="card kpi"><small>ئەمڕۆ فرۆشراو</small>${cuInt(tot.sold, 'jSold')}</div><div class="card kpi"><small>گەڕاوە</small>${cuInt(tot.ret, 'jRet')}</div><div class="card kpi"><small>گۆڕاو (زەمانەت)</small>${cuInt(tot.exch, 'jExch')}</div><div class="card kpi"><small>خراپ</small>${cuInt(faulty, 'jBad')}</div><div class="card kpi"><small>ماوە لە ${esc(S.branches[b])}</small>${cuInt(left, 'jLeft')}</div></div>
-    <div class="card pad" style="margin-bottom:14px"><h2>داخستنی قاصە — ${esc(S.branches[b])}</h2><p class="mute" style="font-size:14px;margin:2px 0 12px">پارەی کاشی ناو قاصە بژمێرە و بینووسە. بەڕێوەبەر بەراوردی دەکات لەگەڵ فرۆشتنەکان.</p>
+      <div class="card kpi"><small>ئەمڕۆ فرۆشراو</small>${cuInt(tot.sold, 'jSold')}</div><div class="card kpi"><small>گەڕاوە</small>${cuInt(tot.ret, 'jRet')}</div><div class="card kpi"><small>گۆڕاو (زەمانەت)</small>${cuInt(tot.exch, 'jExch')}</div><div class="card kpi"><small>خراپ</small>${cuInt(faulty, 'jBad')}</div>${lvl() > 1 ? `<div class="card kpi"><small>ماوە لە ${esc(S.branches[b])}</small>${cuInt(left, 'jLeft')}</div>` : ''}</div>
+    <div class="card pad" style="margin-bottom:14px"><h2>داخستنی قاصە — ${esc(S.branches[b])}</h2><p class="mute" style="font-size:14px;margin:2px 0 12px">لە کۆتایی ڕۆژ، پارەی ناو قاصەکە بە دەست بژمێرە و تەنها ئەو ژمارەیە لێرە بنووسە. هیچ هەژمارێکی تر پێویست نییە؛ سیستەم خۆی لەگەڵ فرۆشتنەکان بەراوردی دەکات و بۆ بەڕێوەبەری دەنێرێت.</p>
       <div class="row raterow"><input class="inp num grow" id="dcA" type="text" inputmode="decimal" placeholder="بڕی کاشی ژمێردراو" style="font-size:19px;font-weight:800"><b>${CUR()}</b><input class="inp grow" id="dcN" placeholder="تێبینی (ئارەزوومەندانە)" maxlength="200"><button class="btn volt" id="dcOk">ناردن</button></div>
       ${myCloses.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:10px">${myCloses.map(c => `<span class="tag g">${hm(c.t)} · نێردرا: <span class="num">${fmtMoney(c.counted)}</span></span>`).join('')}</div>` : ''}</div>
-    <div class="card pad" style="margin-bottom:14px"><div class="row sp" style="flex-wrap:wrap"><div><h2>ژماردنی ئەمڕۆ — ${esc(S.branches[b])}</h2><p class="mute" style="font-size:14px">تەنها ئەوە بنووسە کە بە دەست ژماردووتە. فرۆشراو، گەڕاوە و گۆڕاو سیستەمەکە خۆی دەیزانێت.</p></div>
+    <div class="card pad" style="margin-bottom:14px"><div class="row sp" style="flex-wrap:wrap"><div><h2>ژماردنی ئەمڕۆ — ${esc(S.branches[b])}</h2><p class="mute" style="font-size:14px">هەر کاڵایەک بژمێرە و ژمارەکەی لە خانەی «ژماردم» بنووسە. «دەبێت مابێت» ئەوەیە کە سیستەم دەڵێت. «جیاوازی» = ژماردنی تۆ − دەبێت مابێت: «ڕاستە» واتە وەک یەکن، «کەمە» واتە دانەیەک ون بووە، «زیادە» واتە زیاترە لە سیستەم.</p></div>
         <div class="chips" style="margin:0"><button class="chip ${f === 'moved' ? 'on' : ''}" data-jf="moved">جووڵاوەکانی ئەمڕۆ <span class="num">${moved.length}</span></button><button class="chip ${f === 'all' ? 'on' : ''}" data-jf="all">هەموو کاڵاکان</button></div></div>
       <input class="inp" id="jQ" placeholder="گەڕان بە ناو یان بارکۆد" value="${esc(S.jardQ)}" style="margin:12px 0 4px">
       ${list.length ? `<div class="row sp" style="margin:8px 0;flex-wrap:wrap;gap:8px"><span class="mute" style="font-size:14px"><span class="num">${list.length}</span> دێڕ · تەنها پێداچوونەوە بکە؛ هەر ژمارەیەک جیاواز بوو لە خانەی «ژماردم» بیگۆڕە</span><button class="ghost sm" id="jAll">${ico('check', 15)} هەمووی وەک سیستەم ڕاستە</button></div>
@@ -1959,8 +1986,15 @@ V.team = () => {
       run('newAccount', Object.assign({ name, role: $('#uR').value, home: +$('#uB').value }, pwArg(name, $('#uPw').value)), () => { closeModal(); toast('ئەکاونتەکە دروست کرا'); V.team(); }); }; };
 };
 
+let slQ = '';
 V.sales = () => {
-  $('#view').innerHTML = `<div class="card scroll">${S.sales.length ? `<table><tr><th>پسولە</th><th>بەروار</th><th>کات</th><th>لق</th><th>فرۆشیار</th><th>جۆر</th><th>پارەدان</th><th>کۆ</th><th>گەڕاوە</th><th></th></tr>${S.sales.map(x => `<tr><td class="num"><b>#${x.no}</b>${x.legacy ? ' <span class="tag n">سیستەمی کۆن</span>' : ''}</td><td class="num">${x.t.toLocaleDateString('en-GB')}</td><td>${hm(x.t)}</td><td>${esc(S.branches[x.branch])}</td><td class="en">${esc(x.by)}</td><td><span class="tag n">${TYPES[x.type]}</span></td><td>${payTag(x.pay)}</td><td>${money(x.total)}</td><td>${x.refunded ? money(x.refunded) : '—'}</td><td><div class="row"><button class="ghost sm" data-v="${x.no}">بینین</button>${x.legacy ? '' : `<button class="ghost sm" data-r="${x.no}">گەڕاندنەوە</button>`}</div></td></tr>`).join('')}</table>` : '<div class="empty"><b>هێشتا هیچ پسولەیەک نییە</b></div>'}</div>`;
+  const q = slQ.trim().toLowerCase(), qd = q.replace(/^#/, ''), list = !q ? S.sales : S.sales.filter(x => String(x.no).includes(qd) || slipCode(x.no) === qd || x.by.toLowerCase().includes(q) || (x.phone || '').includes(qd) || (x.buyer || '').toLowerCase().includes(q) || ((x.customer && cust(x.customer)) || { name: '' }).name.toLowerCase().includes(q) || x.lines.some(l => l.name.toLowerCase().includes(q) || (l.sn || []).some(n => n.toLowerCase().includes(q))));
+  const pcs = q ? list.reduce((a, x) => a + x.lines.filter(l => l.name.toLowerCase().includes(q)).reduce((b, l) => b + l.qty - l.ret, 0), 0) : 0;
+  $('#view').innerHTML = `<div class="row sp slbar"><input class="inp grow" id="slQ" placeholder="گەڕان: ژمارەی پسولە، ناوی کاڵا (بۆ نموونە cable 1m)، سریاڵ، مۆبایلی کڕیار، فرۆشیار" value="${esc(slQ)}" autocomplete="off">${q ? `<span class="tag b"><span class="num">${list.length}</span> پسولە${pcs ? ` · <span class="num">${pcs}</span> دانە لەو کاڵایە` : ''}</span><button class="ghost sm" id="slX">پاککردنەوە</button>` : ''}</div>
+  <div class="card scroll">${list.length ? `<table><tr><th>پسولە</th><th>بەروار</th><th>کات</th><th>لق</th><th>فرۆشیار</th><th>جۆر</th><th>پارەدان</th><th>کۆ</th><th>گەڕاوە</th><th></th></tr>${list.slice(0, 400).map(x => `<tr><td class="num"><b>#${x.no}</b>${x.legacy ? ' <span class="tag n">سیستەمی کۆن</span>' : ''}</td><td class="num">${x.t.toLocaleDateString('en-GB')}</td><td>${hm(x.t)}</td><td>${esc(S.branches[x.branch])}</td><td class="en">${esc(x.by)}</td><td><span class="tag n">${TYPES[x.type]}</span></td><td>${payTag(x.pay)}</td><td>${money(x.total)}${q && !x.legacy ? `<small class="slit">${x.lines.map(l => `<span class="num">${l.qty} ×</span> <button class="ilink" data-sq="${esc(l.name)}">${esc(l.name)}</button>`).join('<br>')}</small>` : ''}</td><td>${x.refunded ? money(x.refunded) : '—'}</td><td><div class="row"><button class="ghost sm" data-v="${x.no}">بینین</button>${x.legacy ? '' : `<button class="ghost sm" data-r="${x.no}">گەڕاندنەوە</button>`}</div></td></tr>`).join('')}</table>` : `<div class="empty"><b>${q ? 'هیچ پسولەیەک نەدۆزرایەوە' : 'هێشتا هیچ پسولەیەک نییە'}</b></div>`}</div>`;
+  const sq = $('#slQ'); sq.oninput = () => { slQ = sq.value; V.sales(); const n = $('#slQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+  if ($('#slX')) $('#slX').onclick = () => { slQ = ''; V.sales(); };
+  $('#view').querySelectorAll('[data-sq]').forEach(b => b.onclick = () => { slQ = b.dataset.sq; V.sales(); });
   $('#view').querySelectorAll('[data-v]').forEach(b => b.onclick = () => receipt(S.sales.find(x => x.no === +b.dataset.v)));
   $('#view').querySelectorAll('[data-r]').forEach(b => b.onclick = () => { warNo = +b.dataset.r; warSn = ''; go('warranty'); });
 };
@@ -1973,8 +2007,8 @@ V.mine = () => {
   const list = [...days.values()].sort((a, b) => b.d < a.d ? -1 : 1), best = list.slice().sort((a, b) => b.tot - a.tot)[0], bh = Object.entries(hrs).sort((a, b) => b[1] - a[1])[0];
   const today = days.get(isoD(new Date())) || { n: 0, pcs: 0, tot: 0 }, dm = d => d.split('-').reverse().join('/');
   const det = o => `<tr class="bdet"><td colspan="5"><div class="scroll"><table class="wt"><tr><th>کات</th><th>پسولە</th><th>کاڵا</th><th>جۆر</th><th>پارەدان</th><th>کۆ</th></tr>${o.sales.map(s => `<tr><td>${hm(new Date(Core.ms(s.t)))}</td><td><button class="ghost sm num" data-v="${s.no}">#${s.no}</button></td><td class="dfi">${s.lines.map(l => `<span class="num">${l.qty} ×</span> <span class="en">${esc(l.name)}</span> <span class="num mute">${USD(l.price)}</span>`).join('<br>')}</td><td><span class="tag n">${TYPES[s.type]}</span></td><td>${payTag(s.pay)}</td><td>${money(s.total - s.refunded)}</td></tr>`).join('')}</table></div></td></tr>`;
-  $('#view').innerHTML = `<div class="kgrid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))"><div class="card kpi"><small>ئەمڕۆ فرۆشتوومە</small>${cu(today.tot, 'myT')}<em class="kem"><span class="num">${today.pcs}</span> دانە · <span class="num">${today.n}</span> پسولە</em></div><div class="card kpi"><small>باشترین ڕۆژم</small><b class="num" id="myBest">${best ? dm(best.d) : '—'}</b><em class="kem">${best ? fmtMoney(best.tot) + ' · ' + best.pcs + ' دانە' : ''}</em></div><div class="card kpi"><small>باشترین کاتژمێرم</small><b class="num" id="myHr">${bh ? String(bh[0]).padStart(2, '0') + ':00' : '—'}</b><em class="kem">${bh ? 'زۆرترین فرۆشتنم لەم کاتەدایە' : ''}</em></div><div class="card kpi"><small>کۆی هەموو فرۆشتنەکانم</small>${cu(my.reduce((a, s) => a + s.total - s.refunded, 0))}<em class="kem"><span class="num">${my.length}</span> پسولە</em></div></div>
-    <div class="card scroll">${list.length ? `<table class="byt"><tr><th>بەروار</th><th>پسولە</th><th>دانە</th><th>کۆی فرۆشتن</th><th></th></tr>${list.map(o => `<tr class="brow ${myOpen === o.d ? 'sel' : ''}" data-md="${o.d}"><td class="num"><b>${dm(o.d)}</b>${best && best.d === o.d ? ' <span class="tag g">باشترین ڕۆژ</span>' : ''}</td><td class="num">${o.n}</td><td class="num">${o.pcs}</td><td><b>${money(o.tot)}</b></td><td class="mute">${myOpen === o.d ? 'داخستن' : 'وردەکاری'}</td></tr>${myOpen === o.d ? det(o) : ''}`).join('')}</table>` : '<div class="empty"><b>هێشتا هیچت نەفرۆشتووە</b>هەر فرۆشتنێک بکەیت لێرە بە ڕۆژ کۆ دەبێتەوە</div>'}</div>`;
+  $('#view').innerHTML = `<div class="kgrid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))"><div class="card kpi"><small>ئەمڕۆ فرۆشتوومە</small>${cu(today.tot, 'myT')}<em class="kem"><span class="num">${today.pcs}</span> دانە · <span class="num">${today.n}</span> پسولە</em></div></div></div>
+    <div class="card scroll">${list.length ? `<table class="byt"><tr><th>بەروار</th><th>پسولە</th><th>دانە</th><th>کۆی فرۆشتن</th><th></th></tr>${list.map(o => `<tr class="brow ${myOpen === o.d ? 'sel' : ''}" data-md="${o.d}"><td class="num"><b>${dm(o.d)}</b></td><td class="num">${o.n}</td><td class="num">${o.pcs}</td><td><b>${money(o.tot)}</b></td><td class="mute">${myOpen === o.d ? 'داخستن' : 'وردەکاری'}</td></tr>${myOpen === o.d ? det(o) : ''}`).join('')}</table>` : '<div class="empty"><b>هێشتا هیچت نەفرۆشتووە</b>هەر فرۆشتنێک بکەیت لێرە بە ڕۆژ کۆ دەبێتەوە</div>'}</div>`;
   $('#view').querySelectorAll('[data-md]').forEach(r => r.onclick = () => { myOpen = myOpen === r.dataset.md ? '' : r.dataset.md; V.mine(); });
   $('#view').querySelectorAll('[data-v]').forEach(b => b.onclick = e => { e.stopPropagation(); receipt(S.sales.find(x => x.no === +b.dataset.v)); });
 };
@@ -2008,6 +2042,7 @@ V.cashjard = () => {
   const sumU = mine.filter(h => h.cur === 'USD').reduce((a, h) => a + h.amount, 0), sumD = mine.filter(h => h.cur === 'IQD').reduce((a, h) => a + h.amount, 0);
   $('#view').innerHTML = `${sees ? `<div class="two tills">${S.branches.map((x, k) => tillCard(k)).join('')}</div><p class="mute" style="margin:-4px 0 14px;font-size:14px">دۆلار و دینار جیا هەژمار دەکرێن، بۆیە گۆڕانی نرخی دۆلار هیچ نەقس و زیادەیەک لە دەخیلدا دروست ناکات.</p>` : ''}
     ${own ? '' : `<div class="card pad" style="margin-bottom:14px"><h2>پارەدان بە وەستا غەریب — ${esc(S.branches[b])}</h2><p class="mute" style="margin:4px 0 14px">هەر پارەیەک لە دەخیل دەیدەیت بە وەستا غەریب، لێرە بینووسە. دوای «تەواو» تەنها بەڕێوەبەر دەتوانێت دەستکاریی بکات.</p>
+      ${sees ? (o => `<div class="tillnow tilln"><div><small>ئێستا لە قاصەدایە — دۆلار</small><b class="num" id="hTU">${USD(o.usd)}</b></div><div><small>ئێستا لە قاصەدایە — دینار</small><b class="num" id="hTD">${DIN(o.iqd)}</b></div></div>`)(Core.till(S, b)) : ''}
       <div class="row hform"><input class="inp num grow" id="hA" type="text" inputmode="decimal" placeholder="بڕی پارە" autocomplete="off" style="font-size:19px;font-weight:800"><div class="seg" id="hCur"><button data-hc="IQD" class="on">دینار</button><button data-hc="USD">دۆلار $</button></div></div>
       <label class="f" style="margin-top:12px">هۆکار / تێبینی (پێویستە)<input class="inp" id="hN" maxlength="300" placeholder="بۆ نموونە: پارەی فرۆشی ئەمڕۆم دا بە وەستا غەریب" autocomplete="off"></label>
       <div class="acts"><button class="btn blue" id="hOk">${ico('check', 19)}تەواو</button></div></div>`}
