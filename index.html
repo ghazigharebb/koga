@@ -1128,6 +1128,46 @@ table.jx2 td.jx input.lg{font-size:.84em;letter-spacing:-.5px}
 @media(max-width:1279px){table.jx2 td.jx input{width:64px}#view table.jx2 th,#view table.jx2 td{padding-inline:6px}}
 table.jx2 td.jx input.lg{font-size:.9em}
 @media(min-width:1280px){table.jx2 thead th{font-size:.9em}table.jx2 th:nth-child(12){width:7%}table.jx2 th:nth-child(2){width:12.2%}}
+
+/* ---------- cash sheet: a calculator you can see is a calculator ---------- */
+.calc2{margin-top:12px;padding:14px;border-radius:18px;background:var(--inset);border:1px solid var(--line2);display:grid;gap:12px}
+.chead{display:flex;align-items:center;gap:11px}
+.chead .chi{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--ink);color:var(--on-ink);flex:none}
+.chead b{display:block;font-size:17px;font-weight:800}.chead small{display:block;color:var(--mute);font-size:13px;font-weight:600;line-height:1.5}
+.cboxes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cbox{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:15px;background:var(--p2);border:2px solid var(--line2);cursor:text;min-width:0;transition:.15s var(--ease)}
+.cbox .cic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex:none;font-family:Sora,"KU";font-weight:900;font-size:19px;color:#fff}
+.cbox.cd .cic{background:linear-gradient(135deg,#1f9d57,#12753d);font-size:15px;font-family:"KU"}
+.cbox.cu .cic{background:linear-gradient(135deg,#2f7df6,#1b56c4)}
+.cbox .cin{display:grid;min-width:0;flex:1}.cbox small{color:var(--mute);font-weight:800;font-size:13px}
+.cbox input{border:0;outline:0;background:none;color:var(--ink);font-family:Sora,"KU";font-size:23px;font-weight:800;width:100%;min-width:0;padding:0;direction:ltr;text-align:right}
+.cbox input::placeholder{color:var(--mute);opacity:.5}
+.cbox:focus-within{border-color:var(--vt);box-shadow:0 0 0 3px rgba(var(--vrgb),.18)}
+.cbox.cd.on{border-color:#1f9d57}.cbox.cu.on{border-color:#2f7df6}
+.cout{min-height:46px;display:grid;align-items:center}.cout>.mute{font-size:13px;text-align:center}
+.cout .gsum{margin:0;padding:12px 14px}.cout .gsum b{font-size:21px}.cout .gsum.cback b{font-size:21px}
+.cway{display:flex;align-items:center;gap:9px;margin:12px 2px 2px;font-size:14px;color:var(--ink2)}
+.cwi{min-width:30px;height:30px;padding:0 6px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:900;font-size:12.5px;flex:none}
+.cwi.iqd{background:#1f9d57}.cwi.usd{background:#2f7df6;font-family:Sora;font-size:15px}
+@media(max-width:420px){.cboxes{grid-template-columns:1fr}}
+/* ---------- tills: one number per till, all tills together ---------- */
+.tsum{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:9px 0 0!important;border-top:1px solid var(--line2)!important;font-weight:800;color:var(--ink)!important}
+.tsum b{font-size:17px}
+.twarn{display:flex;gap:8px;align-items:flex-start;margin-top:10px;padding:9px 12px;border-radius:12px;background:rgba(var(--argb),.1);border:1px solid rgba(var(--argb),.35);color:var(--amber);font-size:13.5px;font-weight:700;line-height:1.6}
+.twarn svg{flex:none;margin-top:3px}
+.gtill{margin-bottom:14px;border-color:rgba(var(--vrgb),.35)}.gtill .tillnow{margin-bottom:0}.gtill .tall{border-color:rgba(var(--vrgb),.4)}
+.curfix{margin-bottom:14px;border-color:rgba(var(--argb),.4)}.cfrow{flex-wrap:wrap;gap:8px;padding:8px 0;border-top:1px dashed var(--line2)}
+.rcw{font-size:13px;margin-top:8px;text-align:center}
+/* ---------- buyers: the one who bought the most ---------- */
+.bestb{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px;border-color:rgba(var(--argb),.45);background:linear-gradient(90deg,rgba(var(--argb),.1),transparent 70%),linear-gradient(180deg,var(--p2),var(--p1))}
+.bcrown{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,#f6c945,#e09a12);color:#3a2600;flex:none;box-shadow:0 8px 22px -8px rgba(224,154,18,.7)}
+.bestb .grow{display:grid;gap:1px;min-width:0}.bestb small{color:var(--mute);font-weight:700;font-size:13.5px}.bestb .grow b{font-size:19px;font-weight:800;text-align:right;overflow-wrap:anywhere}
+.bnum{display:grid;justify-items:end;gap:2px}.bnum b{font-family:Sora,"KU";font-size:24px;font-weight:800;color:var(--amber)}
+.byrow{gap:10px;flex-wrap:wrap}.byrow .inp{flex:1 1 220px}.byrow .seg button{padding:9px 12px;font-size:14px}
+.byt tr.top1 td{background:rgba(var(--argb),.07)}.topt{background:rgba(var(--argb),.14)!important;color:var(--amber)!important;border-color:rgba(var(--argb),.4)!important}
+.gtill .tillnow{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.bestb .grow{flex:1 1 150px}.bnum{flex:0 1 auto;min-width:0}.bnum b{white-space:nowrap}
+@media(max-width:760px){.bestb .bnum{flex:1 1 100%;justify-items:start;padding-inline-start:66px;margin-top:-6px}}
 </style>
 </head>
 <body>
@@ -1163,6 +1203,6 @@ table.jx2 td.jx input.lg{font-size:.9em}
 
 
 
-<script src="app.js?v=cfaa4d36fffc"></script>
+<script src="app.js?v=a1f7c86fe00e"></script>
 </body>
 </html>
