@@ -2,7 +2,7 @@
 <html lang="ckb" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src https://exayuyporjusmbxcwxzz.supabase.co; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src https://exayuyporjusmbxcwxzz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#06070A">
@@ -1173,6 +1173,15 @@ table.jx2 td.jx input.lg{font-size:.9em}
 .archbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin-top:14px;padding:12px 16px;border:1px dashed var(--line2);border-radius:14px;color:var(--mute);font-size:14px;line-height:1.7}
 .archbar>span:first-child{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.archbar svg{flex:none;color:var(--vt)}.archbar b{color:var(--ink)}
 .archbar .row{gap:8px;flex-wrap:wrap}
+
+/* no internet / waiting sales: one quiet line at the top of every screen */
+#netbar{display:none}
+#netbar.on{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;position:fixed;inset-inline:0;top:0;z-index:96;padding:calc(var(--sat,0px) + 7px) 14px 7px;font-size:14px;font-weight:700;line-height:1.5;text-align:center;background:var(--amber);color:var(--on-a,#1a1300)}
+#netbar.go{background:var(--volt);color:var(--on-ink,#0b0d12)}#netbar.bad{background:var(--red);color:#fff}
+#netbar i{display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;margin-inline-end:7px;animation:netp 1.2s ease-in-out infinite}
+#netbar button{background:rgba(0,0,0,.18);color:inherit;border-color:transparent}
+@keyframes netp{50%{opacity:.25}}
+@media print{#netbar{display:none!important}}
 </style>
 </head>
 <body>
@@ -1208,6 +1217,6 @@ table.jx2 td.jx input.lg{font-size:.9em}
 
 
 
-<script src="app.js?v=305d8af6e62d"></script>
+<script src="app.js?v=22ccbbef1f1a"></script>
 </body>
 </html>

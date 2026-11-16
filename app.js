@@ -161,6 +161,10 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
   /* ---------- the actions: [lowest level allowed, rule] ---------- */
   const A = {
     sell: [1, (st, u, p, now) => {
+      const oid = typeof p.oid === 'string' && /^[A-Za-z0-9]{8,24}$/.test(p.oid) ? p.oid : null, off = !!(oid && p.off);   // off = it was sold while the device had no internet
+      if (oid) { const was = st.sales.find(s => s.oid === oid) || (st.voids || []).find(s => s.oid === oid); if (was) return { no: was.no, total: was.total, dup: true }; }
+      if (off) (Array.isArray(p.lines) ? p.lines : []).forEach(l => { const it = l && st.items.find(i => i.id === l.id), bb = br(st, u, p), q = l && Number.isInteger(l.qty) ? l.qty : 0;   // the piece already left the shop: the count was wrong, not the sale
+        if (it && q > it.s[bb] && q <= 10000) { const d = q - it.s[bb]; it.s[bb] += d; adj(st, now, it.id, bb, d); log(st, u.name, bb, now, 'alert', `فرۆشتنی ئۆفلاین: «${esc(it.name)}» <b class="num">${d}</b> دانە لە ژمارەی کۆگا زیاتر فرۆشرا — ژمارەی کۆگاکەی بپشکنە`); } });
       const b = br(st, u, p), lines = cartLines(st, p.lines, p.type, u), type = p.type, pay = p.pay;
       if (!has(PAY, pay)) throw new Err(BAD);
       if (!lines.length) throw new Err('سەبەتەکە بەتاڵە');
@@ -198,12 +202,13 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
         got = { usd: g.usd || 0, iqd: g.iqd || 0 };
         const fixed = !disc && lines.every(l => l.pd != null), dn = fixed ? lines.reduce((a, l) => a + l.qty * l.pd, 0) : payDinar(st.rate, total);
         df = got.iqd && fixed ? { d: got.iqd + dinar(st.rate, got.usd) - dn, c: Math.round((got.iqd + dinar(st.rate, got.usd) - dn) * 100 / st.rate) } : cashDiff(total, st.rate, got);   // a dinar-priced basket paid in its dinar is exact   // the amount is the system's, not the seller's: the price in dollars, or its dinar to the nearest 250
-        if (!((!got.iqd && got.usd === total) || (!got.usd && got.iqd === dn))) throw new Err('پارەی وەرگیراو دەبێت یان ' + '$' + usd(total) + ' بێت یان ' + grp(dn) + ' د.ع');
-        if (df.d < -SHORT_MAX) throw new Err('پارەی وەرگیراو ' + grp(-df.d) + ' دینار لە نرخەکە کەمترە؛ داشکاندن تەنها بەڕێوەبەر دەیکات');
-        if (df.d > OVER_MAX) throw new Err('ئەمە ' + grp(df.d) + ' دینار لە نرخەکە زیاترە؛ تەنها ئەو بڕە بنووسە کە دوای باقی لە قاصە دەمێنێتەوە');
+        if (!off && !((!got.iqd && got.usd === total) || (!got.usd && got.iqd === dn))) throw new Err('پارەی وەرگیراو دەبێت یان ' + '$' + usd(total) + ' بێت یان ' + grp(dn) + ' د.ع');
+        if (!off && df.d < -SHORT_MAX) throw new Err('پارەی وەرگیراو ' + grp(-df.d) + ' دینار لە نرخەکە کەمترە؛ داشکاندن تەنها بەڕێوەبەر دەیکات');
+        if (!off && df.d > OVER_MAX) throw new Err('ئەمە ' + grp(df.d) + ' دینار لە نرخەکە زیاترە؛ تەنها ئەو بڕە بنووسە کە دوای باقی لە قاصە دەمێنێتەوە');
       }
       const sale = { no: st.nextNo++, t: now, branch: b, by: u.name, rate: st.rate, type, pay, fibRef: pay === 'fib' ? str(p.fibRef, 60) : '', customer: needCust ? cu.id : null, lines: lines.map(l => { const o = { id: l.it.id, name: l.it.name, qty: l.qty, price: l.price, cost: l.it.c == null ? null : l.it.c, ret: 0, w: l.w }; if (l.list != null) o.list = l.list; if (l.used) o.used = true; if (l.sn.length) o.sn = l.sn; if (l.pd != null) o.pd = l.pd; return o; }), sub, disc, total, refunded: 0 };
       if (got) { sale.got = got; sale.diffD = df.d; sale.diffC = df.c; }
+      if (oid) sale.oid = oid; if (off) sale.offl = true;
       if (got && p.tend && typeof p.tend === 'object') {
         const tu = p.tend.usd || 0, td = p.tend.iqd || 0;
         if (![tu, td].every(n => Number.isInteger(n) && n >= 0 && n <= 1e9)) throw new Err(AMT);
@@ -987,6 +992,7 @@ function announce(n) { // n new entries on top of S.log: bell + phone-style noti
 /* ---------- one door for every change ---------- */
 function run(action, payload, onOk, onFail) {
   payload = Object.assign({ branch: S.branch }, payload);
+  if (action === 'sell' && !payload.oid) payload.oid = newOid();
   if (REMOTE) return void runRemote(action, payload, onOk, onFail);
   const n0 = S.log.length; let r;
   try { r = Core.apply(S, S.me, action, payload, new Date()); } catch (e) { if (e instanceof Core.Err) { toast(e.message, 1); if (onFail) onFail(); return; } throw e; }
@@ -1009,11 +1015,66 @@ function call(action, payload, as) { // one request at a time, in order
 async function api(body) {
   const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 20000); let txt = '';
   try { const r = await fetch(srv() + '/functions/v1/koga', { method: 'POST', signal: ctl.signal, headers: Object.assign({ 'Content-Type': 'application/json' }, keyH()), body }); txt = await r.text(); }
-  catch (e) { throw new Error('پەیوەندی لەگەڵ سێرڤەر نەکرا؛ ئینتەرنێتەکەت بپشکنە'); }
+  catch (e) { const x = new Error('پەیوەندی لەگەڵ سێرڤەر نەکرا؛ ئینتەرنێتەکەت بپشکنە'); x.net = true; throw x; }
   finally { clearTimeout(tm); }
   let j = null; try { j = JSON.parse(txt, revive); } catch (e) {}
   if (!j || !j.ok) { const e = new Error((j && j.error) || 'سێرڤەر وەڵامی نەدایەوە؛ دووبارە هەوڵ بدەوە'); e.code = j && j.code; throw e; }
   return j;
+}
+/* ---------- no internet: the shop goes on selling ----------
+   The page itself opens from the device (sw.js), with the last copy of the shop it received. A sale made without internet is
+   checked and shown here, kept on this device, and sent by itself when the internet is back — with its own id, so it can never
+   be written twice, and with its own time. Everything else (returns, prices, stock, money) waits for the internet. */
+const OFFQ = 'koga_offq_v1', SNAPK = 'koga_snap_v1', Q = { list: [], bad: [], busy: false };
+const newOid = () => { const a = new Uint8Array(12); crypto.getRandomValues(a); return [...a].map(x => 'abcdefghijklmnopqrstuvwxyz0123456789'[x % 36]).join(''); };
+const offCode = oid => 'OF-' + String(oid || '').slice(-5).toUpperCase();
+const saleNo = s => s.wait ? offCode(s.oid) : '#' + s.no;                                // a waiting sale has no shop number yet
+const qLoad = () => { try { const j = JSON.parse(localStorage.getItem(OFFQ) || '{}'); Q.list = j.list || []; Q.bad = j.bad || []; } catch (e) {} };
+const qSave = () => { try { localStorage.setItem(OFFQ, JSON.stringify({ list: Q.list, bad: Q.bad })); } catch (e) { toast('بیرگەی ئەم ئامێرە پڕە؛ فرۆشتنی ئۆفلاین هەڵناگیرێت', 1); } };
+const qMine = () => Q.list.filter(q => q.by === S.session);
+function qShow(q, strict) { // put a waiting sale on this screen: pieces down, receipt in the lists
+  const r = Core.apply(S, q.by, 'sell', Object.assign({}, q.payload, strict ? {} : { off: true }), new Date(q.t)), s = S.sales.find(x => x.no === r.no);
+  if (s && !r.dup) s.wait = true; return r;
+}
+function offSell(payload, onOk, onFail) {
+  if (viewAs()) { if (onFail) onFail(); return; }
+  const q = { oid: payload.oid, payload, t: Date.now(), by: S.session }; let r;
+  try { r = qShow(q, true); } catch (e) { if (e instanceof Core.Err) { toast(e.message, 1); if (onFail) onFail(); return; } throw e; }   // the same rules as always: pieces, prices, the money handed over
+  if (!r.dup) { Q.list.push(q); qSave(); }
+  drawNet(); toast('ئینتەرنێت نییە — فرۆشتنەکە لەسەر ئەم ئامێرە هەڵگیرا؛ کە ئینتەرنێت هاتەوە خۆی دەنێردرێت'); if (onOk) onOk(r);
+}
+async function flushQ() { // the internet is back: waiting sales go to the server one by one, oldest first
+  if (Q.busy || !net.token || !S.session || viewAs() || !qMine().length) return; Q.busy = true;
+  try { while (Q.list.length) { const q = Q.list.find(x => x.by === S.session); if (!q) break; let j;
+      try { j = await call('sell', Object.assign({}, q.payload, { oid: q.oid, offT: q.t })); }
+      catch (e) { if (e.net) { net.off = true; break; } if (e.code === 'auth') { netFail(e); break; }
+        Q.list = Q.list.filter(x => x !== q); Q.bad.push(Object.assign({ why: e.message }, q)); qSave(); continue; }   // the server said no: kept apart with the reason, never thrown away silently
+      net.off = false; Q.list = Q.list.filter(x => x !== q); qSave(); takeSnap(j); net.stale = true; }
+  } finally { Q.busy = false; drawNet(); }
+}
+function snapSave(j) { // the last copy of the shop, so the page can open with no internet (short lists: enough to sell)
+  if (!REMOTE || viewAs()) return;
+  try { const s = Object.assign({}, j.state, { log: (j.state.log || []).slice(0, 80), sales: (j.state.sales || []).slice(0, 400), voids: [], adjs: (j.state.adjs || []).slice(0, 600) });
+    localStorage.setItem(SNAPK, JSON.stringify({ v: j.v, me: j.me, state: s, at: Date.now() })); } catch (e) { try { localStorage.removeItem(SNAPK); } catch (e2) {} }
+}
+const snapLoad = () => { try { const j = JSON.parse(localStorage.getItem(SNAPK) || 'null', revive); return j && j.state && j.me && Array.isArray(j.state.items) ? j : null; } catch (e) { return null; } };
+function drawNet() {
+  let b = $('#netbar'); if (!b) { b = document.createElement('div'); b.id = 'netbar'; document.body.appendChild(b); }
+  const w = S.session ? qMine().length : 0, other = Q.list.length - w, bad = Q.bad.length;
+  if (!S.session || (!net.off && !w && !bad && !other)) { b.className = ''; b.innerHTML = ''; return; }
+  b.className = 'on ' + (net.off ? 'off' : bad ? 'bad' : 'go');
+  b.innerHTML = (net.off ? `<span><i></i>ئینتەرنێت نییە — تەنها فرۆشتن دەکرێت${w ? ` · <b class="num">${w}</b> فرۆشتن چاوەڕێی ناردنن` : ''}</span>` : w ? `<span><i></i><b class="num">${w}</b> فرۆشتنی ئۆفلاین دەنێردرێن…</span>` : '')
+    + (other ? `<span><b class="num">${other}</b> فرۆشتنی ئەکاونتێکی تر لەسەر ئەم ئامێرە چاوەڕێن — با خاوەنەکەی بچێتە ژوورەوە</span>` : '')
+    + (bad ? `<button class="ghost sm" id="netBad"><b class="num">${bad}</b> فرۆشتنی ئۆفلاین قبوڵ نەکرا — بیبینە</button>` : '');
+  if ($('#netBad')) $('#netBad').onclick = badSheet;
+}
+function badSheet() { // sales the server refused after the internet came back: the goods already left, so a person must decide
+  modal(`<h2>فرۆشتنی ئۆفلاین کە قبوڵ نەکران</h2><p class="mute" style="margin:6px 0 14px">ئەم فرۆشتنانە بێ ئینتەرنێت کراون و سێرڤەر وەرینەگرتن. هۆکارەکە ببینە؛ «دووبارە» هەوڵی ناردنی دەداتەوە.</p>
+    ${Q.bad.map((q, i) => `<div class="item"><div class="grow"><p><b class="num">${offCode(q.oid)}</b> · <span class="en">${esc(q.by)}</span> · ${hm(new Date(q.t))} <small class="num">${new Date(q.t).toLocaleDateString('en-GB')}</small></p><small>${q.payload.lines.map(l => `<span class="num">${l.qty} ×</span> ${esc((item(l.id) || { name: '#' + l.id }).name)}`).join('، ')}</small><small style="color:var(--red);display:block">${esc(q.why || '')}</small></div><span class="row"><button class="btn sm" data-bq="${i}">دووبارە</button><button class="ghost sm" data-bx="${i}">سڕینەوە</button></span></div>`).join('') || '<div class="empty"><b>هیچ نەماوە</b></div>'}
+    <div class="acts"><button class="ghost" id="bqNo">داخستن</button></div>`);
+  $('#bqNo').onclick = closeModal;
+  $('#sheet').querySelectorAll('[data-bq]').forEach(b => b.onclick = () => { const q = Q.bad.splice(+b.dataset.bq, 1)[0]; delete q.why; Q.list.push(q); qSave(); closeModal(); drawNet(); flushQ().then(() => { if (Q.bad.length) badSheet(); }); });
+  $('#sheet').querySelectorAll('[data-bx]').forEach(b => b.onclick = () => { if (!confirm('ئەم فرۆشتنە بۆ هەمیشە لە لیستەکە دەسڕێتەوە و لە سیستەم تۆمار نابێت. دڵنیایت؟')) return; Q.bad.splice(+b.dataset.bx, 1); qSave(); drawNet(); badSheet(); });
 }
 /* ---------- the archive: months older than about three months live apart on the server. A screen that needs them asks once,
    keeps them while the page is open and lays them beside the working copy (marked `arc`, so no total counts them twice). ---------- */
@@ -1057,7 +1118,9 @@ function archFoot(redraw) {
 }
 function takeSnap(j) { // replace the shared part of S with the server's copy; screen state stays
   if (!j.state || (net.v != null && j.v != null && j.v < net.v)) return false;
+  if (!j.cached) snapSave(j);
   Core.SHARED.forEach(k => { if (k in j.state) S[k] = j.state[k]; });
+  Q.list.forEach(q => { if (q.by === j.me.name) try { qShow(q); } catch (e) {} });
   Core.ARCH_KEYS.forEach(k => { ARC.live[k] = S[k] || []; }); mergeArch();
   net.v = j.v; S.session = j.me.name;
   if (!acct(S.me)) S.me = S.session;
@@ -1077,7 +1140,9 @@ async function runRemote(action, payload, onOk, onFail) {
   let j = null, err = null;
   try { j = await call(action, payload); } catch (e) { err = e; }
   net.busy = false; document.documentElement.style.cursor = '';
+  if (err && err.net) { net.off = true; drawNet(); if (action === 'sell') return offSell(payload, onOk, onFail); }
   if (err) { netFail(err); if (onFail) onFail(); return; }
+  if (net.off) { net.off = false; drawNet(); }
   const top = logTop(); takeSnap(j); announce(newOnTop(top)); if (onOk) onOk(j.result || {});
 }
 function signIn(action, payload, fail) {
@@ -1096,20 +1161,24 @@ function softRefresh() { // new data arrived: redraw without touching an open sh
 }
 async function poll() { // a tiny number tells every screen that something changed
   if (!net.token || !S.session || net.busy || document.hidden) return;
+  if (qMine().length && !net.off) await flushQ();
   try {
     const r = await fetch(srv() + '/rest/v1/koga_tick?id=eq.' + (REMOTE.space === 'test' ? 2 : 1) + '&select=v', { headers: keyH() }), a = await r.json(), v = a && a[0] ? a[0].v : null;
     if (v != null && v !== net.tick && net.token && !net.busy) { // sync once per new number, even if a tick was lost
       if (v !== net.v) { const top = logTop(), j = await call('sync', {}, viewAs()); if (takeSnap(j)) { net.stale = true; announce(newOnTop(top)); } }
       net.tick = v;
     }
-  } catch (e) { if (e.code === 'auth') return netFail(e); }
+    if (net.off) { net.off = false; drawNet(); await flushQ(); if (!net.off && net.v == null) { const j = await call('sync', {}, viewAs()); if (takeSnap(j)) net.stale = true; } }   // back: send what waited, then take the true copy
+  } catch (e) { if (e.code === 'auth') return netFail(e); if (!net.off && (e.net || e instanceof TypeError)) { net.off = true; drawNet(); } }
   if (net.stale) softRefresh();
 }
 function boot() { // online start: an old session token, or the login screen
   try { net.token = localStorage.getItem(TOK); } catch (e) {}
   if (!net.token) return showLogin();
   loginCard('<p class="mute">پەیوەندی بە سێرڤەرەوە دەکرێت…</p>');
-  call('sync').then(j => { takeSnap(j); enter(j.me.name); }, e => { if (e.code === 'auth') { dropSession(); showLogin(); } else loginCard(`<p class="lerr">${esc(e.message)}</p><button class="btn volt big" id="lre">دووبارە هەوڵدان</button>`); });
+  call('sync').then(j => { takeSnap(j); enter(j.me.name); drawNet(); flushQ(); }, e => { const c = e.net ? snapLoad() : null;
+    if (c) { net.off = true; c.cached = true; takeSnap(c); net.v = null; enter(c.me.name); drawNet(); toast('ئینتەرنێت نییە — بە دوایین کۆپیی سەر ئەم ئامێرە کرایەوە؛ فرۆشتن دەکرێت'); return; }
+    if (e.code === 'auth') { dropSession(); showLogin(); } else loginCard(`<p class="lerr">${esc(e.message)}</p><button class="btn volt big" id="lre">دووبارە هەوڵدان</button>`); });
 }
 const LHEAD = '<span class="bolt"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M13.5 2 4 13.5h6.5L9.5 22 20 9.5h-6.8z"/></svg></span><h1>وەستا غەریب</h1>';
 function loginCard(html) { const L = $('#login'); L.className = 'on'; L.onkeydown = null; L.innerHTML = `<div class="lcard">${LHEAD}${html}</div>`; if ($('#lre')) $('#lre').onclick = boot; }
@@ -1244,7 +1313,8 @@ function showLogin(msg, info) {
   const f = L.querySelector('input'); if (f) f.focus();
 }
 function enter(name) { S.session = S.me = name; if (me().branch >= 0) S.branch = me().branch; S.view = lvl() > 1 ? 'dash' : 'pos'; S.cart = newCart(); $('#login').className = ''; $('#login').innerHTML = ''; render(true); save(); }
-function logout() { if (REMOTE) { if (net.token) call('logout').catch(() => {}); dropSession(); return showLogin(); } S.session = S.me = null; save(); showLogin(); }
+function logout() { if (REMOTE) { if (qMine().length) return toast('هێشتا ' + qMine().length + ' فرۆشتنی ئۆفلاینت لەسەر ئەم ئامێرە ماوە؛ چاوەڕێی ئینتەرنێت بکە تا بنێردرێن، پاشان بچۆ دەرەوە', 1);
+    if (net.token) call('logout').catch(() => {}); dropSession(); try { localStorage.removeItem(SNAPK); } catch (e) {} drawNet(); return showLogin(); } S.session = S.me = null; save(); showLogin(); }
 const REVEAL = '#view>*:not(.pos):not(.hero):not(.two):not(.kgrid):not(.kpis):not(.brs):not(.cartbar),.pos>*,.hero>*,.kgrid>*,.kpis>*,.brs>*,.two>*>.card,.two>.card';
 function render(enter) {
   if (!$('#modal').classList.contains('on') && !$('#drawer').classList.contains('on')) lockPage(false);
@@ -1321,7 +1391,8 @@ function drawGrid() { // the product list as ONE piece: a row per item with ever
    Arabic keyboard layout cannot garble the code. */
 const SCAN_BOX = '#q,#rNo,#wrNo,#wSn,#soBc,#gfQ,#iQ,#csQ,#slQ,#vBc,#nBc,#bBc,#jQ,#myQ';                 // boxes that are meant to be scanned into
 const slipCode = no => '77' + String(no).padStart(6, '0');     // the code printed as a barcode on every receipt
-const slipNo = v => { const m = /^77(\d{6,9})$/.exec(latin(v == null ? '' : v).trim()); return m && (S.sales.some(x => x.no === +m[1]) || (S.arch && archMonths().some(k => +m[1] >= S.arch.months[k].a && +m[1] <= S.arch.months[k].z))) ? +m[1] : v; };
+const slipNo = v => { const of = /^of-?([a-z0-9]{5})$/i.exec(latin(v == null ? '' : String(v)).trim()), os = of && S.sales.find(x => x.oid && x.oid.slice(-5).toLowerCase() === of[1].toLowerCase() && !x.wait); if (os) return os.no;   // the code printed on a receipt made without internet
+  const m = /^77(\d{6,9})$/.exec(latin(v == null ? '' : v).trim()); return m && (S.sales.some(x => x.no === +m[1]) || (S.arch && archMonths().some(k => +m[1] >= S.arch.months[k].a && +m[1] <= S.arch.months[k].z))) ? +m[1] : v; };
 function openBought(sale, sn) { // a slip or a serial was scanned: straight to «گەڕاوە و زەمان» with that purchase (the seller only sees the receipt)
   if (S.view === 'returns') return V.returns(sale.no);
   if (lvl() < 2) return receipt(sale);
@@ -1515,7 +1586,7 @@ function askWarranty(l) {
 }
 /* the name last used with a phone number (so it need not be typed twice) */
 const buyerOf = ph => { const k = Core.cleanPhone(ph); if (k.length < 7) return ''; const s = S.sales.find(x => x.phone === k && x.buyer), cu = S.customers.find(x => Core.cleanPhone(x.phone) === k); return s ? s.buyer : cu ? cu.name : ''; };
-const canUndo = s => s && !s.legacy && Date.now() - Core.ms(s.t) <= Core.UNDO_MS && (lvl() > 1 || s.by === S.me) && !s.refunded && !s.swapOf && !(s.rets || []).length && !s.lines.some(l => l.ret || l.exch);
+const canUndo = s => s && !s.legacy && !s.wait && Date.now() - Core.ms(s.t) <= Core.UNDO_MS && (lvl() > 1 || s.by === S.me) && !s.refunded && !s.swapOf && !(s.rets || []).length && !s.lines.some(l => l.ret || l.exch);
 function undoSale(s) { // «پەشیمانبوونەوە»: for 10 minutes the sale can be taken back whole; the pieces go back into the basket to change and sell again
   const left = Math.max(1, Math.ceil((Core.UNDO_MS - (Date.now() - Core.ms(s.t))) / 60000));
   modal(`<h2>پەشیمانبوونەوە لە فرۆشتن</h2><p class="mute" style="margin-bottom:12px">پسولەی <span class="num">#${s.no}</span> (${money(s.total)}) هەڵدەوەشێتەوە: کاڵاکان دەگەڕێنەوە کۆگا${s.pay === 'cash' ? ' و پارەکە بدەرەوە بە کڕیار' : s.pay === 'debt' ? ' و قەرزەکە لادەچێت' : ' و پارەی FIB دەبێت بگەڕێنرێتەوە'}. کاڵاکان دەچنەوە سەبەتە بۆ ئەوەی ئەگەر ویستت بیگۆڕیت و دووبارە بیفرۆشیت. <b><span class="num">${left}</span> خولەکی ماوە.</b></p>
@@ -1648,7 +1719,7 @@ function slip(s) { // always black on white; the shop's own currency leads and t
   const lp = (l, c) => Dn ? DIN(l.pd != null && c === l.price ? l.pd : dinarOf(c, s.rate)) : USD(c), dn = s.dn != null ? s.dn : payDinar(s.total, s.rate), m = c => Dn ? DIN(Math.round(dinarOf(c, s.rate) / 250) * 250) : USD(c);
   return `<div class="slip">
     <div class="sh"><img src="${LOGO}" alt="" width="128" height="128"><h3>وەستا غەریب</h3><small>WASTA GHAREB</small><p>${esc(S.branches[s.branch])}</p>${note ? `<p class="sn">${esc(note)}</p>` : ''}</div>
-    <div class="sno"><span>پسوڵەی فرۆشتن</span><b class="num">#${s.no}</b></div>
+    <div class="sno"><span>پسوڵەی فرۆشتن</span><b class="num">${s.wait || s.offl ? offCode(s.oid) : '#' + s.no}</b></div>
     <div class="smeta">${row('بەروار', `<span class="num">${D(d)}</span>`)}${row('کات', `<span class="num">${h12(d)}</span>`)}${row('فرۆشیار', `<span class="en">${esc(s.by)}</span>`)}${row('جۆری فرۆشتن', TYPES[s.type])}${cu ? row('کڕیار', `<span class="en">${esc(cu.name)}</span>`) : ''}${!cu && (s.buyer || s.phone) ? row('کڕیار', `<span class="en">${esc([s.buyer, s.phone].filter(Boolean).join(' · '))}</span>`) : ''}</div>
     ${s.legacy ? '<p class="sf">ئەم پسوڵەیە لە سیستەمە کۆنەکە تۆمار کراوە؛ وردەکاریی کاڵاکانی لەوێیە.</p>' : `<div class="sl"><div class="slh"><span>کاڵا</span><span>دانە × نرخ</span></div>
     ${s.lines.map(l => `<div class="si"><p><bdi>${esc(l.name)}</bdi></p><div><span class="num">${l.qty} × ${lp(l, l.price)}${l.list != null && l.list > l.price ? ` <s>${lp(l, l.list)}</s>` : ''}</span></div>${(l.sn || []).length ? `<i class="ssn">S/N ${l.sn.map(esc).join(' · ')}</i>` : ''}${l.ret ? `<i>گەڕێنراوەتەوە: <span class="num">${l.ret}</span> دانە</i>` : ''}</div>`).join('')}</div>`}
@@ -1659,7 +1730,7 @@ function slip(s) { // always black on white; the shop's own currency leads and t
     <p class="sf">تکایە ئەم پسوڵەیە بپارێزە</p><p class="sf2">سوپاس بۆ کڕینەکەت</p></div>`;
 }
 function receipt(s) {
-  modal(`<div class="row sp rch"><h2>پسولەی <span class="num">#${s.no}</span></h2>${payTag(s.pay)}</div>
+  modal(`<div class="row sp rch"><h2>پسولەی <span class="num">${saleNo(s)}</span></h2>${s.wait ? '<span class="tag a">چاوەڕێی ئینتەرنێت</span>' : s.offl ? `<span class="tag n num">${offCode(s.oid)}</span>` : ''}${payTag(s.pay)}</div>
     <div class="paper" id="paper">${slip(s)}</div>
     ${s.got && lvl() > 1 ? `<div class="row sp rcd"><span>پارەی وەرگیراو بەرامبەر نرخ</span>${diffTag(s.diffD)}</div>` : ''}
     <div class="acts" style="flex-wrap:wrap"><button class="btn" id="rcP">${ico('print', 18)}چاپکردن</button><button class="ghost" id="rcX">داخستن</button>${canUndo(s) ? `<button class="ghost undo" id="rcU">${ico('returns', 17)}پەشیمانبوونەوە <small>(تا 10 خولەک)</small></button>` : ''}${isOwner() && s.pay === 'cash' && !s.legacy && s.total > 0 ? `<button class="ghost" id="rcC">${s.got && s.got.iqd ? 'بە دۆلار وەرگیراوە' : 'بە دینار وەرگیراوە'}</button>` : ''}</div>
@@ -2351,7 +2422,7 @@ V.team = () => {
 
 let slQ = '';
 V.sales = () => {
-  const q = slQ.trim().toLowerCase(), qd = q.replace(/^#/, ''), list = !q ? S.sales : S.sales.filter(x => String(x.no).includes(qd) || slipCode(x.no) === qd || x.by.toLowerCase().includes(q) || (x.phone || '').includes(qd) || (x.buyer || '').toLowerCase().includes(q) || ((x.customer && cust(x.customer)) || { name: '' }).name.toLowerCase().includes(q) || x.lines.some(l => l.name.toLowerCase().includes(q) || (l.sn || []).some(n => n.toLowerCase().includes(q))));
+  const q = slQ.trim().toLowerCase(), qd = q.replace(/^#/, ''), list = !q ? S.sales : S.sales.filter(x => String(x.no).includes(qd) || (x.oid && offCode(x.oid).toLowerCase().includes(q)) || slipCode(x.no) === qd || x.by.toLowerCase().includes(q) || (x.phone || '').includes(qd) || (x.buyer || '').toLowerCase().includes(q) || ((x.customer && cust(x.customer)) || { name: '' }).name.toLowerCase().includes(q) || x.lines.some(l => l.name.toLowerCase().includes(q) || (l.sn || []).some(n => n.toLowerCase().includes(q))));
   const pcs = q ? list.reduce((a, x) => a + x.lines.filter(l => l.name.toLowerCase().includes(q)).reduce((b, l) => b + l.qty - l.ret, 0), 0) : 0;
   if (q && /^(\d{3,}|[a-z0-9]{6,})$/i.test(qd)) archSeek(qd, () => { if (S.view === 'sales') V.sales(); });
   $('#view').innerHTML = `<div class="row sp slbar"><input class="inp grow" id="slQ" placeholder="گەڕان: ژمارەی پسولە، ناوی کاڵا (بۆ نموونە cable 1m)، سریاڵ، مۆبایلی کڕیار، فرۆشیار" value="${esc(slQ)}" autocomplete="off">${q ? `<span class="tag b"><span class="num">${list.length}</span> پسولە${pcs ? ` · <span class="num">${pcs}</span> دانە لەو کاڵایە` : ''}</span><button class="ghost sm" id="slX">پاککردنەوە</button>` : ''}</div>
@@ -2544,7 +2615,8 @@ let rsT; addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(
   if (window.MutationObserver) ['#view', '#sheet', '#charge'].forEach(s => { const n = document.querySelector(s); if (n) new MutationObserver(later).observe(n, { childList: true, subtree: true }); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fitAll(); if (S.me) fitNav(); });
   if (window.ResizeObserver) { let h0 = -1; const nav = document.querySelector('.side nav'); if (nav) new ResizeObserver(() => { if (nav.clientHeight !== h0) { h0 = nav.clientHeight; fitNav(); } }).observe(nav); } }
-if (REMOTE) { boot(); setInterval(poll, 5000); document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); }); }
+if (REMOTE) { qLoad(); boot(); setInterval(poll, 5000); document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); }); addEventListener('online', () => poll()); addEventListener('offline', () => { net.off = true; drawNet(); });
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {}); }
 else {
   load(); S.tz = -new Date().getTimezoneOffset(); // offline "today" follows this device's clock
   if (S.session && acct(S.session)) { if (!acct(S.me)) S.me = S.session; render(true); } else showLogin();
