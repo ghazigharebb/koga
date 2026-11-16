@@ -935,7 +935,7 @@ i.cy{font-style:normal;font-size:max(.5em,12px);font-weight:700;letter-spacing:0
 .vrow>span{flex:1 1 170px;min-width:0}.vrow>b{white-space:nowrap}.vnote{flex:1 1 100%}
 .itab td>.tag:not(:first-child){display:block;width:max-content;margin-top:3px}
 /* a table wider than the screen fades out on the side where it continues */
-.scroll.more{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 38px);mask-image:linear-gradient(to right,transparent 0,#000 38px)}
+.scroll.fadeL{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 38px);mask-image:linear-gradient(to right,transparent 0,#000 38px)}
 .pd{min-width:0}.pd>b{max-width:100%;white-space:nowrap}.pd>b.en{overflow:hidden;text-overflow:ellipsis}
 /* ---------- stock ring (manager only): the photo sits inside a ring that empties as the stock runs out ---------- */
 .sring{--c:var(--green);position:relative;display:inline-grid;place-items:center;width:var(--rs);height:var(--rs);flex:none}
@@ -984,6 +984,94 @@ table.xls tr.xtot td{background:rgba(var(--vrgb),.08);font-weight:800;border-top
   .myfil select.inp{flex:1 1 100%}
   .myit .gpic{display:none}
 }
+
+/* ================= round of 16/11: aligned tables, receipt with QR, date boxes, the Excel-style daily sheet ================= */
+/* a number cell sits under its heading (numbers are written left-to-right, but the cell itself follows the page) */
+td.num,th.num{text-align:right}
+/* date boxes: always day / month / year */
+.dbox{position:relative;display:inline-flex;align-items:center;gap:9px;padding:9px 12px;border-radius:13px;background:var(--inset);border:1.5px solid var(--line2);font-weight:700;cursor:pointer;min-width:0;color:var(--ink)}
+.dbox span{font-family:Sora,"KU";font-size:15px;direction:ltr}
+.dbox svg{color:var(--mute);flex:none}
+.dbox input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+.dbox:focus-within{border-color:var(--vt)}
+label.f>.dbox{display:flex;justify-content:space-between}
+/* basket: customer search for wholesale */
+.custfind{position:relative;margin-top:10px}.custfind svg{position:absolute;inset-inline-start:12px;top:50%;transform:translateY(-50%);color:var(--mute)}
+.custfind .inp{padding-inline-start:38px;padding-block:9px;font-size:14.5px}
+.custfind+.custrow{margin-top:8px}
+.debtnote{font-size:13px;margin:-4px 0 0}
+.due+.calc{margin-bottom:6px}
+#gOk{flex:1 1 220px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+/* rate chip */
+#rateChip.tap{cursor:pointer;text-decoration:underline dotted;text-underline-offset:4px}#rateChip.tap:hover{color:var(--vt)}
+/* till: what customers owe */
+.tillnow.tilln{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.tillnow .tdebt{border-style:dashed}.tillnow .tdebt b{color:var(--amber)}
+.tmini{margin:10px 0 14px}
+.debtbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;border-style:dashed}.debtbar b{font-size:21px;color:var(--amber)}
+/* receipt: every row starts on the same edge; QR instead of the bar code */
+.slip .slh{display:flex;justify-content:space-between}
+.slip .si p{direction:rtl;text-align:right;unicode-bidi:normal}
+.slip .si p bdi{font-family:Sora,"KU",sans-serif}
+.slip .si div{direction:rtl}
+.slip .si div span{direction:ltr;unicode-bidi:isolate}
+.slip .sr b{direction:ltr;unicode-bidi:isolate}
+.slip .sq{display:grid;grid-template-columns:27mm minmax(0,1fr);gap:3mm;align-items:center;margin-top:2.6mm;padding-top:2.6mm;border-top:.45mm solid #000}
+.slip .sq svg{display:block;width:27mm;height:27mm}
+.slip .sq div{display:grid;gap:.4mm}
+.slip .sq b{font-size:13pt;font-weight:900;line-height:1.3}
+.slip .sq span{font-size:8.8pt;font-weight:700;line-height:1.5}
+.slip .sq span:before{content:"• "}
+/* ---------- the daily sheet ---------- */
+.jhead{margin-bottom:14px;display:grid;gap:12px}
+.jtop{flex-wrap:wrap;gap:10px}.jmon{gap:10px}.jmon b{font-size:19px;min-width:150px;text-align:center}.jmon .ghost{font-size:19px;line-height:1;padding:6px 13px}
+.jgo{gap:8px;flex-wrap:wrap}
+.jdays{display:flex;gap:3px;overflow-x:auto;padding:2px 1px 6px;scrollbar-width:thin}
+.jdays button{flex:1 0 25px;padding:0;height:38px;border-radius:11px;border:1px solid var(--line);background:var(--p2);font-weight:800;font-size:14.5px;color:var(--ink2);transition:.15s var(--ease)}
+.jdays button:hover:not(:disabled){border-color:var(--vt);color:var(--vt)}
+.jdays button.td{border-color:var(--vt);color:var(--vt)}
+.jdays button.on{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+.jdays button:disabled{opacity:.3;cursor:default}
+.jinfo{flex-wrap:wrap;gap:8px}.jinfo h2{margin:0 0 2px}.jinfo .tag{display:inline-flex;align-items:center;gap:6px}
+.kgrid.jk{grid-template-columns:repeat(6,minmax(0,1fr))}
+@media(max-width:1100px){.kgrid.jk{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.kgrid.jk{grid-template-columns:1fr 1fr}}
+.jbody{padding:14px}
+.jtools{gap:10px;flex-wrap:wrap;margin-bottom:12px}.jtools .search{margin:0;flex:1 1 240px}.jtools .seg button{padding:8px 12px;font-size:14px}
+.jscroll{max-height:72vh;border:1px solid var(--line2);border-radius:14px}
+table.jx2{border-collapse:separate;border-spacing:0;width:100%;font-size:14.5px}
+table.jx2 th,table.jx2 td{border-bottom:1px solid var(--line);border-inline-end:1px solid var(--line);padding:7px 10px;text-align:center;white-space:nowrap;background:var(--p2)}
+table.jx2 thead th{position:sticky;top:0;z-index:3;background:#1f7a44;color:#fff;font-size:13px;font-weight:800;padding:10px 10px;border-color:rgba(255,255,255,.22)}
+table.jx2 thead th.e{background:#145c31}
+table.jx2 td.num,table.jx2 td{text-align:center;direction:ltr}
+table.jx2 .jn{position:sticky;inset-inline-start:0;z-index:2;text-align:right;direction:rtl;min-width:230px;max-width:300px;white-space:normal;box-shadow:-1px 0 0 var(--line2)}
+table.jx2 thead .jn{z-index:4;text-align:right}
+table.jx2 td.jn .ilink{font-family:Sora,"KU";font-weight:700;text-align:right;direction:ltr;unicode-bidi:plaintext;text-decoration:none}
+table.jx2 tbody tr:nth-child(even) td{background:var(--p1)}
+table.jx2 tbody tr.mv td{background:rgba(var(--vrgb),.07)}
+table.jx2 tbody tr.z td.jl{color:var(--red)}
+table.jx2 td.jl{font-weight:800}
+table.jx2 td.up{color:var(--green);font-weight:800}table.jx2 td.dn{color:var(--red);font-weight:800}
+table.jx2 td.jx{padding:3px;background:var(--inset)!important}
+table.jx2 td.jx input{width:74px;height:32px;border-radius:8px;border:1.5px solid var(--line2);background:#fff;color:#111;text-align:center;font-weight:800;font-size:14.5px;font-family:Sora,"KU";outline:none}
+html:not([data-theme="light"]) table.jx2 td.jx input{background:#f4f6ef}
+table.jx2 td.jx input:focus{border-color:#1f7a44;box-shadow:0 0 0 3px rgba(31,122,68,.25)}
+table.jx2 td.jx.b input{border-color:#1f7a44}
+table.jx2 td.jnote{min-width:170px;text-align:right;direction:rtl;white-space:normal}table.jx2 td.jnote input{width:100%;min-width:160px;text-align:right;font-family:"KU";font-weight:600;direction:rtl}
+table.jx2 tfoot td{position:sticky;bottom:0;z-index:3;background:var(--p3);font-weight:900;border-top:2px solid #1f7a44;padding:10px}
+table.jx2 tfoot .jn{z-index:4}
+.jleg{font-size:13px;margin-top:10px;line-height:1.9}
+.jsw{display:inline-block;width:14px;height:14px;border-radius:4px;border:1.5px solid var(--line2);background:var(--p2);vertical-align:-2px;margin-inline-end:5px}.jsw.e{background:#fff;border-color:#1f7a44}
+.slip .si div{justify-content:flex-start}
+@media(max-width:760px){.jdays button{flex:0 0 38px}}
+.jscroll.fadeL{-webkit-mask-image:none;mask-image:none}
+table.jx2 td.jn .ilink{display:inline;padding:0;border:0;background:none}
+table.jx2 th,table.jx2 td{padding:6px 7px}table.jx2 thead th{padding:9px 7px;font-size:12.5px;white-space:normal;line-height:1.35;min-width:58px}
+table.jx2 td.jx input{width:58px}table.jx2 .jn{min-width:200px}table.jx2 td.jnote{min-width:140px}table.jx2 td.jnote input{min-width:130px}
+.tillnow>div{min-width:0}.tillnow{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+.tillrows>div{flex-wrap:wrap}.tillrows>div>span:first-child{flex:1 1 150px;min-width:0}
+.debtbar>span{flex:1 1 200px;min-width:0}.two.tills>*{min-width:0}
+.tillnow b{display:block;white-space:nowrap;max-width:100%}
 </style>
 </head>
 <body>
@@ -1019,6 +1107,6 @@ table.xls tr.xtot td{background:rgba(var(--vrgb),.08);font-weight:800;border-top
 
 
 
-<script src="app.js?v=f6258786c899"></script>
+<script src="app.js?v=c96a7409a880"></script>
 </body>
 </html>
