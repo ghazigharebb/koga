@@ -1197,6 +1197,7 @@ function openBought(sale, sn) { // a slip or a serial was scanned: straight to �
 }
 function onScan(raw) {
   const code = latin(raw).trim(); if (!code || !S.me) return;
+  if (/^https?[:;]|github|ghazigharebb/i.test(code)) return toast('ئەمە کۆدی سەر وەسڵە بۆ کڕیار (واتسئاپ و ناونیشان)؛ بە مۆبایل سکان دەکرێت', 1);   // the customer's QR code read by the shop scanner
   let hit = S.items.filter(i => i.bc && i.bc === code);
   if (!hit.length) hit = S.items.filter(i => i.bc && i.bc.toLowerCase() === code.toLowerCase());
   const no = !hit.length && slipNo(code), sale = typeof no === 'number' && S.sales.find(x => x.no === no);
@@ -1455,7 +1456,7 @@ function barcode(digits) {
   for (let i = 0; i < w.length; i++) { if (i % 2 === 0) out += `<rect x="${x}" y="0" width="${w[i]}" height="1"/>`; x += +w[i]; }
   return `<svg class="bars" viewBox="0 0 ${x + 10} 1" preserveAspectRatio="none" shape-rendering="crispEdges" style="width:${((x + 10) * .45).toFixed(2)}mm">${out}</svg>`;
 }
-const SHOP_QR = 'https://ghazigharebb.github.io/koga/w/';   // one page: our catalogue on WhatsApp, a message to us, both shops on the map, the way by video
+const SHOP_QR = 'https://ghazigharebb.github.io/wg/';   // one page: our catalogue on WhatsApp, a message to us, both shops on the map, the way by video
 /* QR code (byte mode, error level M, versions 1–6): returns the modules as rows of 0/1 */
 function qrMatrix(text) {
   const bytes = [...unescape(encodeURIComponent(text))].map(c => c.charCodeAt(0));

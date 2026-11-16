@@ -1072,6 +1072,52 @@ table.jx2 td.jx input{width:58px}table.jx2 .jn{min-width:200px}table.jx2 td.jnot
 .tillrows>div{flex-wrap:wrap}.tillrows>div>span:first-child{flex:1 1 150px;min-width:0}
 .debtbar>span{flex:1 1 200px;min-width:0}.two.tills>*{min-width:0}
 .tillnow b{display:block;white-space:nowrap;max-width:100%}
+
+/* daily sheet, second round: no window inside the page — the page scrolls, the heading and the totals stay in view, no column is cut */
+.jbody{container-type:inline-size}
+.jscroll{max-height:none;overflow-x:auto;overflow-y:visible;border:0;border-radius:0}
+table.jx2{border:1px solid var(--line2);min-width:1040px}
+table.jx2 tbody td,table.jx2 tbody tr:nth-child(even) td{background:var(--card1,var(--p2))}
+table.jx2 tbody tr:nth-child(even) td{background:var(--card2,var(--p1))}
+table.jx2 tbody tr.mv td{background:color-mix(in srgb,var(--volt) 10%,var(--card1,var(--p2)))}
+table.jx2 td.jx,table.jx2 tbody tr.mv td.jx{background:color-mix(in srgb,var(--ink) 5%,var(--card1,var(--p2)))!important}
+@media(min-width:1280px){
+  .jscroll{overflow:visible}
+  table.jx2{table-layout:fixed;width:100%;min-width:0;font-size:clamp(10.5px,1.22cqw,14.5px)}
+  table.jx2 th,table.jx2 td{padding:.42em .3em;white-space:normal;overflow-wrap:anywhere}
+  table.jx2 thead th{position:sticky;top:0;font-size:.86em;padding:.7em .25em;min-width:0}
+  table.jx2 tfoot td{position:sticky;bottom:0}
+  table.jx2 .jn,table.jx2 thead .jn,table.jx2 tfoot .jn{position:static;min-width:0;max-width:none;box-shadow:none}
+  table.jx2 thead .jn{position:sticky}
+  table.jx2 td.jn .ilink{font-size:.96em;line-height:1.35}
+  table.jx2 td.jx{padding:.2em}
+  table.jx2 td.jx input,table.jx2 td.jnote input{width:100%;min-width:0;height:2.25em;font-size:1em;padding:0 .15em}
+  table.jx2 td.jnote{min-width:0}
+  table.jx2 th:nth-child(1){width:3%}table.jx2 th:nth-child(2){width:15.5%}table.jx2 th:nth-child(3){width:5.3%}table.jx2 th:nth-child(4){width:4.4%}
+  table.jx2 th:nth-child(5){width:6%}table.jx2 th:nth-child(6){width:5.8%}table.jx2 th:nth-child(7){width:5.8%}table.jx2 th:nth-child(8){width:4.6%}
+  table.jx2 th:nth-child(9){width:5.4%}table.jx2 th:nth-child(10){width:5%}table.jx2 th:nth-child(11){width:6%}table.jx2 th:nth-child(12){width:6.2%}
+  table.jx2 th:nth-child(13){width:6.4%}table.jx2 th:nth-child(14){width:7.4%}table.jx2 th:nth-child(15){width:5.6%}table.jx2 th:nth-child(16){width:7.6%}
+}
+@media(min-width:1280px){
+  table.jx2 th,table.jx2 td{overflow-wrap:normal;word-break:normal}
+  table.jx2 td.num,table.jx2 tfoot td{white-space:nowrap}
+  table.jx2 td.jn,table.jx2 td.jnote{overflow-wrap:anywhere}
+  table.jx2 tfoot .jn{position:sticky;bottom:0}
+  table.jx2 thead th{hyphens:none}
+}
+@media(min-width:1280px){
+  table.jx2{font-size:clamp(10px,1.13cqw,14px)}
+  table.jx2 th,table.jx2 td{padding:.42em .1em}
+  table.jx2 td.jn{padding-inline:.5em}
+  table.jx2 th:nth-child(1){width:3%}table.jx2 th:nth-child(2){width:14%}table.jx2 th:nth-child(3){width:5.2%}table.jx2 th:nth-child(4){width:4.4%}
+  table.jx2 th:nth-child(5){width:6.2%}table.jx2 th:nth-child(6){width:6%}table.jx2 th:nth-child(7){width:5.6%}table.jx2 th:nth-child(8){width:4.4%}
+  table.jx2 th:nth-child(9){width:5.2%}table.jx2 th:nth-child(10){width:4.8%}table.jx2 th:nth-child(11){width:6%}table.jx2 th:nth-child(12){width:6.2%}
+  table.jx2 th:nth-child(13){width:7.6%}table.jx2 th:nth-child(14){width:8.2%}table.jx2 th:nth-child(15){width:6%}table.jx2 th:nth-child(16){width:7.2%}
+}
+@media(min-width:1280px){
+  table.jx2 td.num{letter-spacing:-.3px}
+  table.jx2 th:nth-child(2){width:13%}table.jx2 th:nth-child(13){width:8.6%}
+}
 </style>
 </head>
 <body>
@@ -1107,6 +1153,6 @@ table.jx2 td.jx input{width:58px}table.jx2 .jn{min-width:200px}table.jx2 td.jnot
 
 
 
-<script src="app.js?v=c96a7409a880"></script>
+<script src="app.js?v=9db7cc843946"></script>
 </body>
 </html>
