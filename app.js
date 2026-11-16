@@ -14,7 +14,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
   const PAY = { cash: 'کاش', fib: 'FIB', debt: 'قەرز' };
   const LK = { dayoff: 'دەوامی ڕۆژی پشوو', salary: 'مووچە', bonus: 'پاداشت', cut: 'بڕین', other: 'هیتر' };
   /* keys every device shares; everything else in the app's S is screen state */
-  const SHARED = ['items', 'customers', 'branches', 'team', 'ledger', 'notes', 'cur', 'rate', 'rates', 'jards', 'target', 'sales', 'expenses', 'payments', 'purchases', 'exchanges', 'approvals', 'log', 'unread', 'nextNo', 'nextId', 'adjusted', 'jardAdj', 'tz', 'closes', 'shop', 'voids', 'hands', 'gifts', 'gone', 'myTill', 'adjs', 'jlines'];
+  const SHARED = ['items', 'customers', 'branches', 'team', 'ledger', 'notes', 'cur', 'rate', 'rates', 'jards', 'target', 'sales', 'expenses', 'payments', 'purchases', 'exchanges', 'approvals', 'log', 'unread', 'nextNo', 'nextId', 'adjusted', 'jardAdj', 'tz', 'closes', 'shop', 'voids', 'hands', 'gifts', 'gone', 'myTill', 'adjs', 'jlines', 'arch'];
   /* messages that exist only because the server cannot trust the screen */
   const OWNER_ONLY = 'تەنها بەڕێوەبەر دەتوانێت ئەم کارە بکات', DENIED = 'دەسەڵاتی ئەم کارەت نییە', BAD = 'داواکارییەکە دروست نییە';
   const SHORT_MAX = 1000, OVER_MAX = 5000;                 // dinar: the most a cash sale may come in under / over its price
@@ -621,20 +621,85 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
   /* a branch till in the money that is really in it — dollars (cents) and dinars apart, all time. No dollar rate is used, so a
      new rate tomorrow can never make yesterday's cash look over or short. in = cash sales + cash debt payments; out = cash given
      back + expenses; hand = given to the manager. */
-  function till(st, b) {
-    const o = { inU: 0, inD: 0, outU: 0, outD: 0, handU: 0, handD: 0, discD: 0 }, D = st.cur === 'IQD';
+  const TILL0 = () => ({ inU: 0, inD: 0, outU: 0, outD: 0, handU: 0, handD: 0, discD: 0 });
+  /* adds what a bag of records (the live lists, or one archive month) puts into / takes out of one branch till.
+     Records marked `arc` are archive copies shown on a screen: the archive total already holds them. */
+  function tillAdd(st, o, b, bag, all) {
+    const D = st.cur === 'IQD', live = x => all || !x.arc;
     const put = (kU, kD, cents, din, rate) => { if (din != null) o[kD] += din; else if (D) o[kD] += payDinar(rate || st.rate, cents); else o[kU] += cents; };   // no dinar written on an old record: it counts in the shop's own currency, never in the other one
-    st.sales.forEach(x => {
+    (bag.sales || []).forEach(x => { if (!live(x)) return;
       if (x.branch === b && x.pay === 'cash' && !x.legacy) { if (x.got && x.got.iqd) o.inD += x.got.iqd; else if (x.got && x.got.usd) o.inU += x.got.usd; else put('inU', 'inD', x.total, D && x.dn != null ? x.dn : null, x.rate); }
       (x.rets || []).forEach(r => { if (r.branch === b && r.cash) { if (r.cashD != null) o.outD += r.cashD; else if (x.got && x.got.usd && !x.got.iqd) o.outU += r.cash; else put('outU', 'outD', r.cash, null, x.rate); } });
     });
-    st.payments.forEach(x => { if (x.branch === b && x.method !== 'fib') put('inU', 'inD', x.amt, x.amtD); });
-    st.expenses.forEach(x => { if (x.branch === b) put('outU', 'outD', x.amt, x.amtD); });
-    (st.hands || []).forEach(h => { if (h.branch === b) { if (h.cur === 'IQD') o.handD += h.amount; else o.handU += h.amount; } });
-    (st.jlines || []).forEach(l => { if (l.b === b && l.disc) o.discD += l.disc; });   // discounts written in the daily sheet leave the till
+    (bag.payments || []).forEach(x => { if (live(x) && x.branch === b && x.method !== 'fib') put('inU', 'inD', x.amt, x.amtD); });
+    (bag.expenses || []).forEach(x => { if (live(x) && x.branch === b) put('outU', 'outD', x.amt, x.amtD); });
+    (bag.hands || []).forEach(h => { if (live(h) && h.branch === b) { if (h.cur === 'IQD') o.handD += h.amount; else o.handU += h.amount; } });
+    (bag.jlines || []).forEach(l => { if (live(l) && l.b === b && l.disc) o.discD += l.disc; });   // discounts written in the daily sheet leave the till
+    return o;
+  }
+  function till(st, b) {
+    const o = TILL0(), base = st.arch && st.arch.till && st.arch.till[b];
+    if (base) Object.keys(o).forEach(k => o[k] += base[k] || 0);                      // months that moved to the archive
+    tillAdd(st, o, b, st);
     o.usd = o.inU - o.outU - o.handU; o.iqd = o.inD - o.outD - o.handD - o.discD;
     o.debt = st.customers.reduce((a, c) => a + (c.debt || 0), 0);                     // what customers still owe (not in the till)
     return o;
+  }
+  /* ---------- the archive: months older than ARCH_DAYS leave the working copy, so it never grows heavy ----------
+     What goes: receipts (with their returns), cancelled receipts, the log, stock corrections, sheet lines, expenses, hand-overs,
+     debt payments. What stays for ever: items, customers, accounts, deliveries, swaps, gifts, pay. What a month added to the tills
+     and to each buyer's total is kept in st.arch, so every total stays exact. A receipt of a customer who still owes, and a FIB
+     receipt the manager has not ticked yet, wait until that is settled. */
+  const ARCH_DAYS = 92, ARCH_KEYS = ['sales', 'voids', 'log', 'adjs', 'jlines', 'expenses', 'hands', 'payments'];
+  const monthOf = (st, x) => x.t == null ? String(x.d || '').slice(0, 7) : isoD(st, x.t).slice(0, 7);
+  function buyKey(st, s) { const cu = s.customer && st.customers.find(c => c.id === s.customer); return s.phone || (cu && cleanPhone(cu.phone)) || (cu ? 'c' + cu.id : ''); }
+  function buyAdd(st, A, s, sign) {
+    const k = buyKey(st, s); if (!k || s.legacy) return;
+    const o = A.buy[k] || (A.buy[k] = { t: 0, p: 0, n: 0, l: 0, nm: [] }), cu = s.customer && st.customers.find(c => c.id === s.customer);
+    o.t += sign * (s.total - s.refunded); o.p += sign * s.lines.reduce((a, l) => a + l.qty - l.ret, 0); o.n += sign; o.l = Math.max(o.l, ms(s.t));
+    [s.buyer, cu && cu.name].forEach(n => { if (n && sign > 0 && !o.nm.includes(n) && o.nm.length < 4) o.nm.push(n); });
+    if (o.n <= 0) delete A.buy[k];
+  }
+  function archive(st, now, days, dry) { // one month per call, the oldest first; dry = only say what would go
+    const lim = isoD(st, ms(now) - (days == null ? ARCH_DAYS : days) * 864e5).slice(0, 7);
+    const owes = new Set(st.customers.filter(c => c.debt > 0).map(c => c.id));
+    const stay = { sales: s => s.legacy || (s.pay === 'debt' && owes.has(s.customer)) || (s.pay === 'fib' && !s.fibChecked) || (s.back && ms(now) - s.back < 7 * 864e5), payments: x => owes.has(x.customer) };
+    const goes = (key, x) => !(stay[key] && stay[key](x));
+    let k = null; ARCH_KEYS.forEach(key => (st[key] || []).forEach(x => { if (!goes(key, x)) return; const m = monthOf(st, x); if (m && m < lim && (k === null || m < k)) k = m; }));
+    if (!k) return null;
+    const part = {}, keep = {};
+    ARCH_KEYS.forEach(key => { part[key] = []; keep[key] = []; (st[key] || []).forEach(x => (monthOf(st, x) === k && goes(key, x) ? part[key] : keep[key]).push(x)); });
+    if (dry) return { k, part: mark(JSON.parse(JSON.stringify(part))) };
+    ARCH_KEYS.forEach(key => { st[key] = keep[key]; });
+    const A = st.arch || (st.arch = { months: {}, till: [], buy: {} });
+    st.branches.forEach((_, b) => { const o = tillAdd(st, TILL0(), b, part, true), B = A.till[b] || (A.till[b] = {}); Object.keys(o).forEach(key => { if (o[key]) B[key] = (B[key] || 0) + o[key]; }); });
+    part.sales.forEach(s => buyAdd(st, A, s, 1));
+    const M = A.months[k] || (A.months[k] = { n: 0 }); M.n += part.sales.length; M.w = ms(now);
+    part.sales.forEach(s => { if (M.a == null || s.no < M.a) M.a = s.no; if (M.z == null || s.no > M.z) M.z = s.no; });
+    return { k, part: mark(part) };
+  }
+  function mark(part) { ARCH_KEYS.forEach(key => (part[key] || []).forEach(x => { x.arc = 1; })); return part; }
+  /* what is already in the archive month + what goes now (the same record never twice: a retried request sends it again) */
+  function mergePart(old, part) {
+    const out = {};
+    ARCH_KEYS.forEach(key => { const a = (old && old[key]) || [], b = part[key] || [];
+      if (key === 'sales' || key === 'voids') { const m = new Map(); a.concat(b).forEach(x => m.set(x.no, x)); out[key] = [...m.values()].sort((x, y) => ms(y.t) - ms(x.t)); }
+      else { const seen = new Set(); out[key] = a.concat(b).filter(x => { const s = JSON.stringify(x); if (seen.has(s)) return false; seen.add(s); return true; }); } });
+    return out;
+  }
+  /* a receipt comes back from the archive because something must still happen to it (a return, a swap, a correction) */
+  function unarchive(st, sales, now) {
+    const A = st.arch; let n = 0; if (!A) return 0;
+    (sales || []).forEach(raw => { if (st.sales.some(x => x.no === raw.no)) return; const s = JSON.parse(JSON.stringify(raw)); delete s.arc; s.back = ms(now);
+      st.branches.forEach((_, b) => { const o = tillAdd(st, TILL0(), b, { sales: [s] }, true), B = A.till[b] || (A.till[b] = {}); Object.keys(o).forEach(key => { if (o[key]) B[key] = (B[key] || 0) - o[key]; }); });
+      buyAdd(st, A, s, -1); const M = A.months[monthOf(st, s)]; if (M && M.n > 0) M.n--;
+      let i = st.sales.findIndex(x => ms(x.t) < ms(s.t)); if (i < 0) i = st.sales.length; st.sales.splice(i, 0, s); n++; });
+    return n;
+  }
+  /* the part of an archive month one person may see: the same rules as the working copy */
+  function projectPart(st, userName, part) {
+    const tmp = Object.assign({}, st); ARCH_KEYS.forEach(k => { tmp[k] = (part && part[k]) || []; });
+    const out = project(tmp, userName), r = {}; ARCH_KEYS.forEach(k => { r[k] = out[k] || []; }); return r;
   }
   /* ---------- «جەردی ڕۆژانە»: one sheet per day and branch, built from the records themselves ----------
      ژمارەی کۆگا (start of the day) + هاتوو − فرۆشتن − جوملە − عاطڵ + گەڕاوە = ماوە لە کۆگا. Money is what those pieces brought in. */
@@ -666,7 +731,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
   /* start clean for real use: every test sale, log line, count and payment goes; items, customers, accounts and settings stay */
   function resetActivity(st, seedItems, seedCustomers) {
     ['sales', 'expenses', 'payments', 'purchases', 'exchanges', 'approvals', 'log', 'jards', 'ledger', 'notes', 'closes', 'voids', 'hands', 'gifts', 'adjs', 'jlines'].forEach(k => st[k] = []);
-    st.unread = {}; st.nextNo = 20001; st.adjusted = 0; st.jardAdj = 0;
+    st.unread = {}; st.nextNo = 20001; st.adjusted = 0; st.jardAdj = 0; delete st.arch;
     const si = new Map((seedItems || []).map(x => [x.id, x])), sc = new Map((seedCustomers || []).map(x => [x.id, x]));
     st.items.forEach(i => { delete i.f; const x = si.get(i.id); if (x) { i.s = x.s.slice(); i.r = cents(x.r); i.w = cents(x.w); } });
     st.customers.forEach(c => { const x = sc.get(c.id); c.debt = x ? cents(x.debt) : 0; });
@@ -719,6 +784,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
       ledger: own ? st.ledger : st.ledger.filter(x => x.to === u.name || (lv === 2 && (acct(st, x.to) || {}).role === 'staff')),
       notes: own ? st.notes : st.notes.filter(n => n.to === 'all' || (Array.isArray(n.to) && n.to.includes(u.name))),
       adjs: st.adjs || [], jlines: st.jlines || [],
+      arch: st.arch ? { months: st.arch.months, buy: st.arch.buy, till: lv > 1 ? st.arch.till : [] } : null,
       myTill: lv === 1 && u.branch >= 0 ? till(st, u.branch) : null, // a seller sees what should be in his own till (he cannot add it up himself: expenses and other hand-overs are not sent to him)
       closes: lv > 1 ? (st.closes || []) : (st.closes || []).filter(c => c.by === u.name).map(c => ({ id: c.id, t: c.t, by: c.by, branch: c.branch, counted: c.counted, note: c.note })) // staff never learn what the system expected
     };
@@ -737,7 +803,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
     if (st.unread && from in st.unread) { st.unread[to] = (st.unread[to] || 0) + st.unread[from]; delete st.unread[from]; }
     return true;
   }
-  return { Err, LV, ROLE, TYPES, PAY, LK, SHARED, ACTIONS, init, apply, project, rename, resetActivity, freshStart, cashExpected, till, daySheet, cashDiff, dinar, payDinar, dueDinar, reprice, centsOf, importOld, addPlatforms, cleanPhone, UNDO_MS, SN_OK, cleanSn, gotTxt, SHORT_MAX, OVER_MAX, W_DEF, W_MAX, lineW, warrantyEnd, wTxt, log, moves, refundCalc, fmtMoney, fmtCur, iqd, esc, cents, ms, isoD, dayStart, pctTxt };
+  return { Err, LV, ROLE, TYPES, PAY, LK, SHARED, ACTIONS, init, apply, project, rename, resetActivity, freshStart, cashExpected, till, daySheet, archive, mergePart, unarchive, projectPart, buyKey, ARCH_DAYS, ARCH_KEYS, cashDiff, dinar, payDinar, dueDinar, reprice, centsOf, importOld, addPlatforms, cleanPhone, UNDO_MS, SN_OK, cleanSn, gotTxt, SHORT_MAX, OVER_MAX, W_DEF, W_MAX, lineW, warrantyEnd, wTxt, log, moves, refundCalc, fmtMoney, fmtCur, iqd, esc, cents, ms, isoD, dayStart, pctTxt };
 });
 
 // online mode: public address + public (anon) key only. No secret belongs in this file.
@@ -949,9 +1015,50 @@ async function api(body) {
   if (!j || !j.ok) { const e = new Error((j && j.error) || 'سێرڤەر وەڵامی نەدایەوە؛ دووبارە هەوڵ بدەوە'); e.code = j && j.code; throw e; }
   return j;
 }
+/* ---------- the archive: months older than about three months live apart on the server. A screen that needs them asks once,
+   keeps them while the page is open and lays them beside the working copy (marked `arc`, so no total counts them twice). ---------- */
+const ARC = { parts: {}, extra: new Map(), live: {}, asked: new Set(), busy: false, who: null };
+const archMonths = () => S.arch && S.arch.months ? Object.keys(S.arch.months).sort() : [];
+const archLeft = () => archMonths().filter(k => !ARC.parts[k]);
+function mergeArch() {
+  if (ARC.who !== S.me) { ARC.parts = {}; ARC.extra.clear(); ARC.asked.clear(); ARC.who = S.me; }      // another account looks: its own copy
+  if (!S.arch) { ARC.parts = {}; ARC.extra.clear(); return; }
+  Core.ARCH_KEYS.forEach(k => { const live = ARC.live[k] || []; let add = [];
+    Object.values(ARC.parts).forEach(pt => { if (pt[k] && pt[k].length) add = add.concat(pt[k]); });
+    if (k === 'sales') ARC.extra.forEach(s => add.push(s));
+    if (k === 'sales' || k === 'voids') { const seen = new Set(live.map(s => s.no)); add = add.filter(s => !seen.has(s.no) && seen.add(s.no)); }
+    S[k] = add.length ? live.concat(add).sort((a, b) => (b.t ? Core.ms(b.t) : 0) - (a.t ? Core.ms(a.t) : 0)) : live; });
+}
+async function archLoad(ks) {
+  if (!REMOTE || ARC.busy || !ks.length) return false; ARC.busy = true; document.documentElement.style.cursor = 'progress';
+  try { for (let i = 0; i < ks.length; i += 6) { const some = ks.slice(i, i + 6), j = await call('arch', { ks: some }, viewAs() || undefined);
+      some.forEach(k => { ARC.parts[k] = (j.result.parts || {})[k] || {}; }); }
+    mergeArch(); return true;
+  } catch (e) { toast(e.message, 1); return false; } finally { ARC.busy = false; document.documentElement.style.cursor = ''; }
+}
+/* a screen shows days that already left for the archive: those months are fetched once, then the screen draws again */
+function archWant(fromIso, redraw) {
+  if (!REMOTE || !S.arch || ARC.busy) return; const ks = archLeft().filter(k => k >= String(fromIso).slice(0, 7)); if (!ks.length) return;
+  toast('پسوڵە کۆنەکان لە ئەرشیف دەهێنرێن…'); archLoad(ks).then(ok => { if (ok && redraw) redraw(); });
+}
+/* one old receipt by its number, slip code, serial or the buyer's phone; true = the question was sent */
+function archSeek(q, again) {
+  q = latin(q == null ? '' : String(q)).trim().replace(/^#/, ''); if (!REMOTE || !S.arch || !archMonths().length || q.length < 3 || ARC.asked.has(q)) return false; ARC.asked.add(q);
+  const slip = /^77(\d{6,9})$/.exec(q), dig = /^\d+$/.test(q), pay = slip ? { no: +slip[1] } : dig && q.length <= 6 ? { no: +q } : dig ? { phone: q } : { sn: Core.cleanSn(q) };
+  call('archFind', pay, viewAs() || undefined).then(j => { const l = j.result.sales || []; if (!l.length) return; l.forEach(s => ARC.extra.set(s.no, s)); mergeArch(); toast('لە ئەرشیف دۆزرایەوە'); if (again) again(); }, () => {});
+  return true;
+}
+const MON = k => k.slice(5) + '/' + k.slice(0, 4);
+/* the line under long lists: what is still in the archive, and the buttons that bring it */
+function archFoot(redraw) {
+  const v = $('#view'), left = archLeft(); if (!v || !REMOTE || !left.length || v.querySelector('.archbar')) return;
+  v.insertAdjacentHTML('beforeend', `<div class="archbar"><span>${ico('items', 16)}تۆمارەکانی مانگی <b class="num">${MON(left[left.length - 1])}</b> و کۆنتر لە ئەرشیفدان (<span class="num">${left.length}</span> مانگ) — هیچیان نەسڕاونەتەوە</span><span class="row"><button class="ghost sm" data-arc="1">مانگێکی کۆنتر بهێنە</button>${left.length > 1 ? '<button class="ghost sm" data-arc="all">هەموویان بهێنە</button>' : ''}</span></div>`);
+  v.querySelectorAll('[data-arc]').forEach(b => b.onclick = () => { b.disabled = true; archLoad(b.dataset.arc === 'all' ? left : [left[left.length - 1]]).then(ok => { if (ok) redraw(); }); });
+}
 function takeSnap(j) { // replace the shared part of S with the server's copy; screen state stays
   if (!j.state || (net.v != null && j.v != null && j.v < net.v)) return false;
   Core.SHARED.forEach(k => { if (k in j.state) S[k] = j.state[k]; });
+  Core.ARCH_KEYS.forEach(k => { ARC.live[k] = S[k] || []; }); mergeArch();
   net.v = j.v; S.session = j.me.name;
   if (!acct(S.me)) S.me = S.session;
   if (S.branch >= S.branches.length) S.branch = 0;
@@ -1214,7 +1321,7 @@ function drawGrid() { // the product list as ONE piece: a row per item with ever
    Arabic keyboard layout cannot garble the code. */
 const SCAN_BOX = '#q,#rNo,#wrNo,#wSn,#soBc,#gfQ,#iQ,#csQ,#slQ,#vBc,#nBc,#bBc,#jQ,#myQ';                 // boxes that are meant to be scanned into
 const slipCode = no => '77' + String(no).padStart(6, '0');     // the code printed as a barcode on every receipt
-const slipNo = v => { const m = /^77(\d{6,9})$/.exec(latin(v == null ? '' : v).trim()); return m && S.sales.some(x => x.no === +m[1]) ? +m[1] : v; };
+const slipNo = v => { const m = /^77(\d{6,9})$/.exec(latin(v == null ? '' : v).trim()); return m && (S.sales.some(x => x.no === +m[1]) || (S.arch && archMonths().some(k => +m[1] >= S.arch.months[k].a && +m[1] <= S.arch.months[k].z))) ? +m[1] : v; };
 function openBought(sale, sn) { // a slip or a serial was scanned: straight to «گەڕاوە و زەمان» with that purchase (the seller only sees the receipt)
   if (S.view === 'returns') return V.returns(sale.no);
   if (lvl() < 2) return receipt(sale);
@@ -1227,6 +1334,7 @@ function onScan(raw) {
   let hit = S.items.filter(i => i.bc && i.bc === code);
   if (!hit.length) hit = S.items.filter(i => i.bc && i.bc.toLowerCase() === code.toLowerCase());
   const no = !hit.length && slipNo(code), sale = typeof no === 'number' && S.sales.find(x => x.no === no);
+  if (typeof no === 'number' && !sale && archSeek(String(no), () => onScan(code))) return;      // an archived receipt: fetched, then opened
   if (sale) return openBought(sale);                                                             // a receipt's own barcode opens that purchase                    // a receipt's own barcode opens that receipt
   if (S.view === 'jard' && $('#jQ')) { const j = $('#jQ'); j.value = code; j.dispatchEvent(new Event('change', { bubbles: true })); return; }
   if (!hit.length) {
@@ -1240,6 +1348,7 @@ function onScan(raw) {
     }
     const own = S.sales.find(s => s.lines.some(l => (l.sn || []).includes(sn)));
     if (own) return openBought(own, sn);                                                          // the serial of a sold piece opens its purchase
+    if (archSeek(code, () => onScan(code))) return;                                                // …or it was sold long ago: ask the archive, then try once more
     return toast('هیچ کاڵایەک بەم بارکۆدە نییە: ' + code, 1);
   }
   if (S.view !== 'pos') go('pos');
@@ -1573,6 +1682,7 @@ let retNo = null; // the receipt open on the returns screen
 V.returns = (no) => {
   no = slipNo(no);
   const sale = no && S.sales.find(s => s.no === +no); retNo = sale ? sale.no : null;
+  if (!sale && no) archSeek(no, () => { if (S.view === 'returns') V.returns(no); });
   $('#view').innerHTML = `<div class="card pad" style="max-width:1040px">
     <h2>گەڕاندنەوە و گۆڕینی کاڵا</h2><p class="mute" style="margin:4px 0 14px">بە ژمارەی پسولە. <b>گەڕاندنەوە</b>: پارە دەدرێتەوە و کاڵاکە دەچێتەوە کۆگا. <b>گۆڕین</b>: کاڵای خراپ لە ماوەی زەمانەتی یەک ساڵدا بە دانەیەکی نوێ دەگۆڕدرێت، بێ پارە.</p>
     <div class="row"><input class="inp num grow" id="rNo" placeholder="ژمارەی پسولە" inputmode="numeric" value="${no || ''}"><button class="btn" id="rGo">گەڕان</button></div>
@@ -1609,7 +1719,7 @@ let warNo = null, warTab = 'sold', warQ = '', warSn = '';
 V.warranty = (no) => {
   let miss = '';
   if (no !== undefined) { no = slipNo(no); warSn = ''; let f = no !== '' && no != null && S.sales.find(s => s.no === +no);
-    if (!f && no) { const sn = Core.cleanSn(no); f = S.sales.find(s => s.lines.some(l => (l.sn || []).includes(sn))); if (f) warSn = sn; } /* …or the serial of a sold piece */ warNo = f ? f.no : null; if (!f && no !== '' && no != null) miss = String(no); }
+    if (!f && no) { const sn = Core.cleanSn(no); f = S.sales.find(s => s.lines.some(l => (l.sn || []).includes(sn))); if (f) warSn = sn; } /* …or the serial of a sold piece */ warNo = f ? f.no : null; if (!f && no !== '' && no != null) { miss = String(no); const q0 = no; archSeek(q0, () => { if (S.view === 'warranty') V.warranty(q0); }); } }
   const sale = warNo != null && S.sales.find(s => s.no === warNo); if (!sale) warNo = null;
   const T = x => new Date(Core.ms(x)), when = x => `${hm(T(x))}<small class="num">${D8(x)}</small>`, m0 = new Date(); m0.setDate(1); m0.setHours(0, 0, 0, 0);
   const rets = []; S.sales.forEach(s => (s.rets || []).forEach(r => rets.push({ s, r }))); rets.sort((a, b) => Core.ms(b.r.t) - Core.ms(a.r.t));
@@ -2243,6 +2353,7 @@ let slQ = '';
 V.sales = () => {
   const q = slQ.trim().toLowerCase(), qd = q.replace(/^#/, ''), list = !q ? S.sales : S.sales.filter(x => String(x.no).includes(qd) || slipCode(x.no) === qd || x.by.toLowerCase().includes(q) || (x.phone || '').includes(qd) || (x.buyer || '').toLowerCase().includes(q) || ((x.customer && cust(x.customer)) || { name: '' }).name.toLowerCase().includes(q) || x.lines.some(l => l.name.toLowerCase().includes(q) || (l.sn || []).some(n => n.toLowerCase().includes(q))));
   const pcs = q ? list.reduce((a, x) => a + x.lines.filter(l => l.name.toLowerCase().includes(q)).reduce((b, l) => b + l.qty - l.ret, 0), 0) : 0;
+  if (q && /^(\d{3,}|[a-z0-9]{6,})$/i.test(qd)) archSeek(qd, () => { if (S.view === 'sales') V.sales(); });
   $('#view').innerHTML = `<div class="row sp slbar"><input class="inp grow" id="slQ" placeholder="گەڕان: ژمارەی پسولە، ناوی کاڵا (بۆ نموونە cable 1m)، سریاڵ، مۆبایلی کڕیار، فرۆشیار" value="${esc(slQ)}" autocomplete="off">${q ? `<span class="tag b"><span class="num">${list.length}</span> پسولە${pcs ? ` · <span class="num">${pcs}</span> دانە لەو کاڵایە` : ''}</span><button class="ghost sm" id="slX">پاککردنەوە</button>` : ''}</div>
   <div class="card scroll">${list.length ? `<table><tr><th>پسولە</th><th>کات</th><th>لق</th><th>فرۆشیار</th><th>جۆر</th><th>پارەدان</th><th>کۆ</th><th>گەڕاوە</th><th></th></tr>${list.slice(0, 400).map(x => `<tr><td class="num"><b>#${x.no}</b>${x.legacy ? ' <span class="tag n">سیستەمی کۆن</span>' : ''}</td><td>${hm(x.t)}<small class="num" style="display:block;color:var(--mute)">${x.t.toLocaleDateString('en-GB')}</small></td><td>${esc(S.branches[x.branch])}</td><td class="en">${esc(x.by)}</td><td><span class="tag n">${TYPES[x.type]}</span></td><td>${payTag(x.pay)}</td><td>${money(x.total)}${q && !x.legacy ? `<small class="slit">${x.lines.map(l => `<span class="num">${l.qty} ×</span> <button class="ilink" data-sq="${esc(l.name)}">${esc(l.name)}</button>`).join('<br>')}</small>` : ''}</td><td>${x.refunded ? money(x.refunded) : '—'}</td><td><div class="row"><button class="ghost sm" data-v="${x.no}">بینین</button>${x.legacy ? '' : `<button class="ghost sm" data-r="${x.no}">گەڕاندنەوە</button>`}</div></td></tr>`).join('')}</table>` : `<div class="empty"><b>${q ? 'هیچ پسولەیەک نەدۆزرایەوە' : 'هێشتا هیچ پسولەیەک نییە'}</b></div>`}</div>`;
   const sq = $('#slQ'); sq.oninput = () => { slQ = sq.value; V.sales(); const n = $('#slQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
@@ -2256,6 +2367,7 @@ V.sales = () => {
 const MONTHS = ['کانوونی دووەم', 'شوبات', 'ئازار', 'نیسان', 'ئایار', 'حوزەیران', 'تەمموز', 'ئاب', 'ئەیلوول', 'تشرینی یەکەم', 'تشرینی دووەم', 'کانوونی یەکەم'];
 V.jard = () => {
   const today = isoD(new Date()), d = S.jardD && S.jardD <= today ? S.jardD : (S.jardD = today), b = S.branch, sh = Core.daySheet(S, b, d), open = d === today, sup = lvl() > 1;
+  archWant(d, V.jard);   // an old day needs every month from that day on (the pieces are counted back from today)
   const [Y, M, Dd] = d.split('-').map(Number), last = new Date(Y, M, 0).getDate(), iso = (y, m, x) => `${y}-${String(m).padStart(2, '0')}-${String(x).padStart(2, '0')}`;
   const q = (S.jardQ || '').trim().toLowerCase(), only = S.jardOnly, moved = r => r.sold || r.whole || r.ret || r.bad || r.inn || r.disc || r.note;
   const rows = sh.rows.filter(r => (!only || moved(r)) && (!q || r.name.toLowerCase().includes(q) || (item(r.id).bc || '').includes(q)));
@@ -2300,6 +2412,7 @@ V.jard = () => {
 let myOpen = '', myF = { q: '', type: '' };
 V.mine = () => { // «فرۆشتنەکانم»: what I sold in any date range — totals, every item with its pieces, day by day, each receipt (and the undo of a fresh one)
   const r = S.myR || (S.myR = rangeOf('today')), q = latin(myF.q).trim().toLowerCase(), qn = (/^#?(\d{3,})$/.exec(q) || [])[1];
+  archWant(r.from, V.mine);
   const hit = s => { if (myF.type && s.type !== myF.type) return false; if (!q) return true; if (qn && (String(s.no) === qn || slipCode(s.no) === qn)) return true;
     return s.lines.some(l => { const it = item(l.id); return l.name.toLowerCase().includes(q) || (it && it.bc && it.bc.includes(q)) || (l.sn || []).some(n => n.toLowerCase().includes(q)); }) || (s.phone || '').includes(q) || (s.buyer || '').toLowerCase().includes(q); };
   const my = S.sales.filter(s => s.by === S.me && !s.legacy && inRange(r, s.t) && hit(s)), days = new Map(), its = new Map();
@@ -2385,17 +2498,19 @@ let byS = 'top';
 V.buyers = () => {
   const M = new Map(), key = s => { const cu = s.customer && cust(s.customer); return s.phone || (cu && Core.cleanPhone(cu.phone)) || (cu ? 'c' + cu.id : ''); };
   S.sales.forEach(s => { const k = key(s); if (!k) return; const cu = s.customer && cust(s.customer); let o = M.get(k);
-    if (!o) M.set(k, o = { k, phone: /^c\d+$/.test(k) ? '' : k, names: new Set(), sales: [], total: 0, pcs: 0, last: 0, wh: !!cu });
-    if (s.buyer) o.names.add(s.buyer); if (cu) o.names.add(cu.name); o.sales.push(s); o.total += s.total - s.refunded; o.pcs += s.lines.reduce((a, l) => a + l.qty - l.ret, 0); o.last = Math.max(o.last, Core.ms(s.t)); });
+    if (!o) M.set(k, o = { k, phone: /^c\d+$/.test(k) ? '' : k, names: new Set(), sales: [], total: 0, pcs: 0, last: 0, wh: !!cu, n: 0 });
+    if (s.buyer) o.names.add(s.buyer); if (cu) o.names.add(cu.name); o.sales.push(s); if (s.arc) return; o.n++; o.total += s.total - s.refunded; o.pcs += s.lines.reduce((a, l) => a + l.qty - l.ret, 0); o.last = Math.max(o.last, Core.ms(s.t)); });
+  Object.entries((S.arch && S.arch.buy) || {}).forEach(([k, x]) => { let o = M.get(k); if (!o) M.set(k, o = { k, phone: /^c\d+$/.test(k) ? '' : k, names: new Set(), sales: [], total: 0, pcs: 0, last: 0, wh: /^c\d+$/.test(k), n: 0 });
+    o.total += x.t; o.pcs += x.p; o.n += x.n; o.last = Math.max(o.last, x.l); (x.nm || []).forEach(n => o.names.add(n)); });   // what the archived months added
   const top = [...M.values()].sort((a, b) => b.total - a.total || b.pcs - a.pcs), rank = new Map(top.map((o, i) => [o.k, i + 1])), best = top[0] && top[0].total > 0 ? top[0] : null;
   const all = byS === 'last' ? [...M.values()].sort((a, b) => b.last - a.last) : top, q = byQ.trim().toLowerCase(), qd = Core.cleanPhone(byQ);
   const list = !q ? all : all.filter(o => (qd.length >= 3 && o.phone.includes(qd)) || [...o.names].some(n => n.toLowerCase().includes(q)));
   const noPh = S.sales.filter(s => !key(s) && !s.legacy).length, nm = o => [...o.names].join('، ') || '—';
   const detail = o => `<tr class="bdet"><td colspan="7"><div class="scroll"><table class="wt"><tr><th>کات</th><th>پسولە</th><th>کاڵا</th><th>جۆر</th><th>پارەدان</th><th>کۆ</th><th>فرۆشیار</th></tr>${o.sales.map(s => `<tr><td>${hm(new Date(Core.ms(s.t)))}<small class="num">${D8(s.t)}</small></td><td><button class="ghost sm num" data-v="${s.no}">#${s.no}</button></td><td class="dfi">${s.lines.map(l => `<span class="num">${l.qty} ×</span> <span class="en">${esc(l.name)}</span>${l.ret ? ` <span class="tag r">گەڕاوەتەوە <span class="num">${l.ret}</span></span>` : ''}`).join('<br>')}</td><td><span class="tag n">${TYPES[s.type]}</span></td><td>${payTag(s.pay)}</td><td>${money(s.total - s.refunded)}</td><td class="en">${esc(s.by)}</td></tr>`).join('')}</table></div></td></tr>`;
   $('#view').innerHTML = `<div class="kgrid"><div class="card kpi"><small>موشتەری بە ژمارەی مۆبایل</small><b class="num" id="byN">${all.length}</b></div><div class="card kpi"><small>کۆی کڕینیان</small>${cu(all.reduce((a, o) => a + o.total, 0))}</div><div class="card kpi"><small>فرۆشتنی بێ ژمارە</small><b class="num">${noPh}</b></div></div>
-    ${best ? `<div class="card pad bestb"><span class="bcrown">${ico('crown', 26)}</span><div class="grow"><small>زۆرترین کڕین تا ئێستا</small><b class="en">${esc(nm(best))}</b><span class="mute num">${esc(best.phone) || ''}</span></div><div class="bnum"><b class="num" id="byBest">${fmtMoney(best.total)}</b><small><span class="num">${best.pcs}</span> دانە · <span class="num">${best.sales.length}</span> پسولە</small></div></div>` : ''}
+    ${best ? `<div class="card pad bestb"><span class="bcrown">${ico('crown', 26)}</span><div class="grow"><small>زۆرترین کڕین تا ئێستا</small><b class="en">${esc(nm(best))}</b><span class="mute num">${esc(best.phone) || ''}</span></div><div class="bnum"><b class="num" id="byBest">${fmtMoney(best.total)}</b><small><span class="num">${best.pcs}</span> دانە · <span class="num">${best.n}</span> پسولە</small></div></div>` : ''}
     <div class="row byrow" style="margin-bottom:14px"><input class="inp grow" id="byQ" placeholder="گەڕان بە ناو یان ژمارەی مۆبایل" value="${esc(byQ)}" autocomplete="off"><div class="seg"><button data-bys="top" class="${byS === 'last' ? '' : 'on'}">زۆرترین کڕین</button><button data-bys="last" class="${byS === 'last' ? 'on' : ''}">دوایین کڕین</button></div></div>
-    <div class="card scroll">${list.length ? `<table class="byt"><tr><th>پلە</th><th>مۆبایل</th><th>ناو</th><th>پسولە</th><th>دانە</th><th>کۆی کڕین</th><th>دوایین کڕین</th></tr>${list.slice(0, 200).map(o => `<tr class="brow ${byOpen === o.k ? 'sel' : ''} ${rank.get(o.k) === 1 && o.total > 0 ? 'top1' : ''}" data-bk="${esc(o.k)}"><td><span class="medal m${Math.min(rank.get(o.k), 4)} num">${rank.get(o.k)}</span></td><td class="num"><b>${esc(o.phone) || '—'}</b></td><td class="en">${esc(nm(o))}${o.wh ? ' <span class="tag b">جوملە</span>' : ''}${rank.get(o.k) === 1 && o.total > 0 ? ' <span class="tag g topt">زۆرترین کڕین</span>' : ''}</td><td class="num">${o.sales.length}</td><td class="num">${o.pcs}</td><td><b>${money(o.total)}</b></td><td class="num">${D8(o.last)}</td></tr>${byOpen === o.k ? detail(o) : ''}`).join('')}</table>` : `<div class="empty"><b>${q ? 'هیچ موشتەرییەک نەدۆزرایەوە' : 'هێشتا هیچ موشتەرییەک بە ژمارەی مۆبایل تۆمار نەکراوە'}</b>لە کاتی فرۆشتن، ژمارەی مۆبایلی کڕیار لە سەبەتە بنووسە؛ هەموو کڕینەکانی لێرە کۆ دەبنەوە</div>`}</div>`;
+    <div class="card scroll">${list.length ? `<table class="byt"><tr><th>پلە</th><th>مۆبایل</th><th>ناو</th><th>پسولە</th><th>دانە</th><th>کۆی کڕین</th><th>دوایین کڕین</th></tr>${list.slice(0, 200).map(o => `<tr class="brow ${byOpen === o.k ? 'sel' : ''} ${rank.get(o.k) === 1 && o.total > 0 ? 'top1' : ''}" data-bk="${esc(o.k)}"><td><span class="medal m${Math.min(rank.get(o.k), 4)} num">${rank.get(o.k)}</span></td><td class="num"><b>${esc(o.phone) || '—'}</b></td><td class="en">${esc(nm(o))}${o.wh ? ' <span class="tag b">جوملە</span>' : ''}${rank.get(o.k) === 1 && o.total > 0 ? ' <span class="tag g topt">زۆرترین کڕین</span>' : ''}</td><td class="num">${o.n}</td><td class="num">${o.pcs}</td><td><b>${money(o.total)}</b></td><td class="num">${D8(o.last)}</td></tr>${byOpen === o.k ? detail(o) : ''}`).join('')}</table>` : `<div class="empty"><b>${q ? 'هیچ موشتەرییەک نەدۆزرایەوە' : 'هێشتا هیچ موشتەرییەک بە ژمارەی مۆبایل تۆمار نەکراوە'}</b>لە کاتی فرۆشتن، ژمارەی مۆبایلی کڕیار لە سەبەتە بنووسە؛ هەموو کڕینەکانی لێرە کۆ دەبنەوە</div>`}</div>`;
   const i = $('#byQ'); i.oninput = () => { byQ = i.value; V.buyers(); const n = $('#byQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
   $('#view').querySelectorAll('[data-bys]').forEach(x => x.onclick = () => { byS = x.dataset.bys; V.buyers(); });
   $('#view').querySelectorAll('[data-bk]').forEach(r => r.onclick = () => { byOpen = byOpen === r.dataset.bk ? '' : r.dataset.bk; V.buyers(); });
@@ -2422,6 +2537,7 @@ V.diffs = () => {
 };
 V.log = () => { $('#view').innerHTML = `<div class="card pad" style="max-width:940px"><p class="mute" style="margin-bottom:6px">هەموو کارێک بە ناوی ئەو کەسەی کردوویەتی تۆمار دەکرێت و ناسڕدرێتەوە.</p>${S.log.map(feedRow).join('') || '<div class="empty"><b>تۆمارەکە بەتاڵە</b></div>'}</div>`; };
 /* a section that fails to draw must never leave the old section on screen */
+['sales', 'log', 'expenses', 'cashjard', 'buyers', 'customers', 'diffs', 'warranty', 'returns', 'mine'].forEach(n => { const f = V[n]; V[n] = (...a) => { const r = f(...a); try { archFoot(() => V[n]()); } catch (e) {} return r; }; });
 const drawView = () => { try { V[S.view](); fitAll(); } catch (e) { console.error(e); $('#view').innerHTML = `<div class="card pad empty"><b>ئەم بەشە نەکرایەوە</b>تکایە پەڕەکە نوێ بکەرەوە. ئەگەر دووبارە بووەوە، ئەم دێڕە بنێرە: <span class="num">${esc(S.view)} — ${esc(e.message)}</span></div>`; } };
 let rsT; addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { if (S.me) { shell(); fitAll(); } }, 200); });
 { let fT = 0; const later = () => { if (fT) return; fT = requestAnimationFrame(() => { fT = 0; fitAll(); }); };
