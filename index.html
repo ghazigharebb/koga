@@ -1118,6 +1118,16 @@ table.jx2 td.jx,table.jx2 tbody tr.mv td.jx{background:color-mix(in srgb,var(--i
   table.jx2 td.num{letter-spacing:-.3px}
   table.jx2 th:nth-child(2){width:13%}table.jx2 th:nth-child(13){width:8.6%}
 }
+
+/* daily sheet: the boxes use the whole cell, so 3, 4 and 5 digits stay readable */
+#view table.jx2 th,#view table.jx2 td{padding-inline:.12em}
+#view table.jx2 td.jx{padding:.18em .14em}
+#view table.jx2 td.jn,#view table.jx2 th.jn{padding-inline:.55em}
+table.jx2 td.jx input{box-sizing:border-box;padding:0 2px;letter-spacing:-.2px}
+table.jx2 td.jx input.lg{font-size:.84em;letter-spacing:-.5px}
+@media(max-width:1279px){table.jx2 td.jx input{width:64px}#view table.jx2 th,#view table.jx2 td{padding-inline:6px}}
+table.jx2 td.jx input.lg{font-size:.9em}
+@media(min-width:1280px){table.jx2 thead th{font-size:.9em}table.jx2 th:nth-child(12){width:7%}table.jx2 th:nth-child(2){width:12.2%}}
 </style>
 </head>
 <body>
@@ -1153,6 +1163,6 @@ table.jx2 td.jx,table.jx2 tbody tr.mv td.jx{background:color-mix(in srgb,var(--i
 
 
 
-<script src="app.js?v=9db7cc843946"></script>
+<script src="app.js?v=1a404b424c48"></script>
 </body>
 </html>

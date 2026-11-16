@@ -893,11 +893,11 @@ function announce(n) { // n new entries on top of S.log: bell + phone-style noti
   const b = $('#bell'); b.classList.remove('rung'); void b.offsetWidth; b.classList.add('rung');
 }
 /* ---------- one door for every change ---------- */
-function run(action, payload, onOk) {
+function run(action, payload, onOk, onFail) {
   payload = Object.assign({ branch: S.branch }, payload);
-  if (REMOTE) return void runRemote(action, payload, onOk);
+  if (REMOTE) return void runRemote(action, payload, onOk, onFail);
   const n0 = S.log.length; let r;
-  try { r = Core.apply(S, S.me, action, payload, new Date()); } catch (e) { if (e instanceof Core.Err) return void toast(e.message, 1); throw e; }
+  try { r = Core.apply(S, S.me, action, payload, new Date()); } catch (e) { if (e instanceof Core.Err) { toast(e.message, 1); if (onFail) onFail(); return; } throw e; }
   announce(S.log.length - n0); if (onOk) onOk(r);
 }
 function quiet(action, payload) { // small housekeeping that must never block the screen (read mark, voided request)
@@ -937,14 +937,14 @@ const newOnTop = top => { let n = 0; while (n < S.log.length && n < 3 && Core.ms
 const viewAs = () => S.me && S.me !== S.session ? S.me : null;
 function dropSession() { net.token = null; net.v = null; try { localStorage.removeItem(TOK); } catch (e) {} S.session = S.me = null; }
 function netFail(e) { if (e.code === 'auth') { dropSession(); closeModal(); showLogin(e.message); } else toast(e.message, 1); }
-async function runRemote(action, payload, onOk) {
-  if (viewAs()) return toast('لە «بینین وەک» تەنها سەیر دەکرێت؛ بۆ گۆڕانکاری بگەڕێوە سەر ئەکاونتی خۆت', 1);
-  if (net.busy) return; // no double submit while the server is answering
+async function runRemote(action, payload, onOk, onFail) {
+  if (viewAs()) { toast('لە «بینین وەک» تەنها سەیر دەکرێت؛ بۆ گۆڕانکاری بگەڕێوە سەر ئەکاونتی خۆت', 1); if (onFail) onFail(); return; }
+  if (net.busy) { if (onFail) onFail('busy'); return; } // no double submit while the server is answering
   net.busy = true; document.documentElement.style.cursor = 'progress';
   let j = null, err = null;
   try { j = await call(action, payload); } catch (e) { err = e; }
   net.busy = false; document.documentElement.style.cursor = '';
-  if (err) return netFail(err);
+  if (err) { netFail(err); if (onFail) onFail(); return; }
   const top = logTop(); takeSnap(j); announce(newOnTop(top)); if (onOk) onOk(j.result || {});
 }
 function signIn(action, payload, fail) {
@@ -2224,7 +2224,7 @@ V.jard = () => {
   const [Y, M, Dd] = d.split('-').map(Number), last = new Date(Y, M, 0).getDate(), iso = (y, m, x) => `${y}-${String(m).padStart(2, '0')}-${String(x).padStart(2, '0')}`;
   const q = (S.jardQ || '').trim().toLowerCase(), only = S.jardOnly, moved = r => r.sold || r.whole || r.ret || r.bad || r.inn || r.disc || r.note;
   const rows = sh.rows.filter(r => (!only || moved(r)) && (!q || r.name.toLowerCase().includes(q) || (item(r.id).bc || '').includes(q)));
-  const can = f => open && (sup || f === 'sold' || f === 'disc' || f === 'ret');
+  const look = !!(REMOTE && viewAs()), can = f => open && !look && (sup || f === 'sold' || f === 'disc' || f === 'ret');
   const cell = (r, f, v, cls = '') => can(f) ? `<td class="jx ${cls}"><input class="num ${f === 'disc' ? 'grp' : ''}" data-id="${r.id}" data-f="${f}" data-o="${v}" type="text" inputmode="numeric" value="${v ? (f === 'disc' ? v.toLocaleString('en-US') : v) : ''}" placeholder="${f === 'left' ? v : ''}" autocomplete="off"></td>` : `<td class="num ${cls}">${v ? v.toLocaleString('en-US') : ''}</td>`;
   const T = rows.reduce((a, r) => { ['open', 'inn', 'sold', 'whole', 'ret', 'bad', 'left', 'disc', 'sumC', 'sumD'].forEach(k => a[k] += r[k]); return a; }, { open: 0, inn: 0, sold: 0, whole: 0, ret: 0, bad: 0, left: 0, disc: 0, sumC: 0, sumD: 0 });
   const n0 = v => v ? v.toLocaleString('en-US') : '';
@@ -2232,7 +2232,7 @@ V.jard = () => {
       <div class="row sp jtop"><div class="row jmon"><button class="ghost sm" id="jPrev" title="مانگی پێشوو">›</button><b>${MONTHS[M - 1]} <span class="num">${Y}</span></b><button class="ghost sm" id="jNext" title="مانگی داهاتوو" ${iso(Y, M, last) >= today ? 'disabled' : ''}>‹</button></div>
         <div class="row jgo"><span class="mute">چوونە سەر ڕۆژێک</span>${dateBox('jDay', d)}${open ? '' : '<button class="btn sm" id="jToday">ئەمڕۆ</button>'}</div></div>
       <div class="jdays">${[...Array(last)].map((_, k) => { const x = iso(Y, M, k + 1); return `<button data-jd="${x}" class="num ${x === d ? 'on' : ''} ${x === today ? 'td' : ''}" ${x > today ? 'disabled' : ''}>${k + 1}</button>`; }).join('')}</div>
-      <div class="row sp jinfo"><div><h2>جەردی ڕۆژی <span class="num">${dmy(d)}</span> — ${esc(S.branches[b])}</h2><small class="mute">${open ? (sup ? 'ئەمڕۆیە: هەموو خانە سپییەکان دەنووسرێن. سبەی ئەم لاپەڕەیە دادەخرێت.' : 'ئەمڕۆیە: دەتوانیت «ژمارەی فرۆشتن»، «گەڕاوە» و «داشکان» بنووسیت. سبەی ئەم لاپەڕەیە دادەخرێت.') : 'ئەم ڕۆژە تێپەڕیوە — تەنها بۆ بینینە و هیچ کەس ناتوانێت دەستکاریی بکات.'}</small></div><span class="tag ${open ? 'g' : 'n'}">${open ? 'کراوەیە' : ico('shield', 14) + ' داخراوە'}</span></div></div>
+      <div class="row sp jinfo"><div><h2>جەردی ڕۆژی <span class="num">${dmy(d)}</span> — ${esc(S.branches[b])}</h2><small class="mute">${open ? (sup ? 'ئەمڕۆیە: هەموو خانە سپییەکان دەنووسرێن. سبەی ئەم لاپەڕەیە دادەخرێت.' : 'ئەمڕۆیە: دەتوانیت «ژمارەی فرۆشتن»، «گەڕاوە» و «داشکان» بنووسیت. سبەی ئەم لاپەڕەیە دادەخرێت.') : 'ئەم ڕۆژە تێپەڕیوە — تەنها بۆ بینینە و هیچ کەس ناتوانێت دەستکاریی بکات.'}${open && look ? ' <b style="color:var(--amber)">ئێستا لە «بینین وەک»دایت: تەنها سەیر دەکرێت.</b>' : ''}</small></div><span class="tag ${open ? 'g' : 'n'}">${open ? 'کراوەیە' : ico('shield', 14) + ' داخراوە'}</span></div></div>
     <div class="kgrid jk"><div class="card kpi"><small>ژمارەی فرۆشتن</small><b class="num">${n0(sh.tot.sold) || 0}</b></div><div class="card kpi"><small>جوملە</small><b class="num">${n0(sh.tot.whole) || 0}</b></div><div class="card kpi"><small>گەڕاوە</small><b class="num">${n0(sh.tot.ret) || 0}</b></div><div class="card kpi"><small>عاطڵ</small><b class="num">${n0(sh.tot.bad) || 0}</b></div><div class="card kpi"><small>مجموع دینار</small><b class="num" id="jSumD">${DIN(sh.tot.sumD)}</b></div><div class="card kpi"><small>مجموع دۆلار</small><b class="num" id="jSumU">${USD(sh.tot.sumC)}</b></div></div>
     <div class="card pad jbody"><div class="row jtools"><div class="search grow">${ico('search', 19)}<input class="inp" id="jQ" placeholder="گەڕان بە ناو یان بارکۆد…" value="${esc(S.jardQ || '')}" autocomplete="off"></div><div class="seg"><button data-jo="" class="${only ? '' : 'on'}">هەموو کاڵاکان <span class="num">${sh.rows.length}</span></button><button data-jo="1" class="${only ? 'on' : ''}">جووڵاوەکانی ئەو ڕۆژە <span class="num">${sh.rows.filter(moved).length}</span></button></div></div>
       <div class="scroll jscroll"><table class="jx2"><thead><tr><th>کۆد</th><th class="jn">جۆری کاڵا</th><th>ژمارەی کۆگا</th><th>هاتوو</th><th>نرخی فرۆشتن $</th><th>نرخی فرۆشتن IQD</th><th class="e">ژمارەی فرۆشتن</th><th>جوملە</th><th class="e">گەڕاوە</th><th class="${sup ? 'e' : ''}">عاطڵ</th><th class="${sup ? 'e' : ''} jl">ماوە لە کۆگا</th><th class="e">داشکان</th><th>مجموع دۆلار</th><th>مجموع دینار</th><th>سعری جوملە</th><th class="${sup ? 'e' : ''}">تێبینی</th></tr></thead><tbody>
@@ -2257,9 +2257,9 @@ V.jard = () => {
       if (String(v) === x.dataset.o) return;
       const sy = scrollY, sx = $('.jscroll').scrollLeft, st = $('.jscroll').scrollTop;
       const back = () => { V.jard(); const s = $('.jscroll'); if (s) { s.scrollLeft = sx; s.scrollTop = st; } scrollTo(0, sy); };
-      let done = false, shown = x.value;
-      run('jardCell', { branch: b, id, f, v, d }, () => { done = true; back(); toast(f === 'sold' ? 'فرۆشتن تۆمار کرا و لە کۆگا کەم کرایەوە' : f === 'ret' ? 'گەڕاوە تۆمار کرا و چووەوە کۆگا' : 'هەڵگیرا'); });
-      if (!done) x.value = REMOTE ? shown : (x.dataset.o === '0' && f !== 'left' ? '' : x.dataset.o); }; });   // refused: the number goes back to what it was (online: it stays until the server answers)
+      const send = tries => run('jardCell', { branch: b, id, f, v, d }, () => { back(); toast(f === 'sold' ? 'فرۆشتن تۆمار کرا و لە کۆگا کەم کرایەوە' : f === 'ret' ? 'گەڕاوە تۆمار کرا و چووەوە کۆگا' : 'هەڵگیرا'); },
+        why => { if (why === 'busy' && tries < 40) return void setTimeout(() => send(tries + 1), 150); back(); });   // the server is still answering the last box: wait for it; refused: the true numbers come back
+      send(0); }; x.oninput = () => { x.classList.toggle('lg', x.value.length > 4); }; x.classList.toggle('lg', x.value.length > 4); });
 };
 /* ---------- «فرۆشتنەکانم»: what I sold, day by day — pieces, money, my best day and my best hour ---------- */
 let myOpen = '', myF = { q: '', type: '' };
