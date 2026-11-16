@@ -671,6 +671,18 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
     st.items.forEach(i => { delete i.f; const x = si.get(i.id); if (x) { i.s = x.s.slice(); i.r = cents(x.r); i.w = cents(x.w); } });
     st.customers.forEach(c => { const x = sc.get(c.id); c.debt = x ? cents(x.debt) : 0; });
   }
+  /* the first real day: every trial goes, the pieces of both branches, the wholesale and the buying prices come from the old system */
+  function freshStart(st, rows, seedCustomers, now) {
+    resetActivity(st, null, seedCustomers);
+    const keep = new Set((seedCustomers || []).map(x => x.id));
+    st.customers = st.customers.filter(c => c.plat || keep.has(c.id));   // customers made while trying the system go too
+    let n = 0;
+    (rows || []).forEach(x => { const it = st.items.find(i => i.name.trim().toLowerCase() === x.name.trim().toLowerCase()); if (!it) return;
+      it.s = st.branches.map((_, k) => x.s[k] || 0); if (x.w > 0) it.w = cents(x.w); if (x.c > 0) it.c = cents(x.c); else delete it.c; n++; });
+    reprice(st);
+    log(st, (st.team.find(u => u.role === 'owner') || {}).name || '', 0, now, 'stock', `دەستپێکی نوێ: هەموو تاقیکردنەوەکان سڕانەوە، ژمارەی <b class="num">${n}</b> کاڵا لە هەردوو لق و نرخی کڕین و جوملە لە سیستەمە کۆنەکەوە هێنران`);
+    return { n };
+  }
   function addPlatforms(st, names) { let n = 0; (names || []).forEach(nm => { if (!st.customers.some(c => c.name === nm)) { st.customers.push({ id: st.nextId++, name: nm, phone: '', addr: '', debt: 0, plat: true }); n++; } else st.customers.find(c => c.name === nm).plat = true; }); return n; }
   function importOld(st, rows, now) {
     let add = 0, fix = 0;
@@ -725,7 +737,7 @@ window.SEED_ITEMS=[];window.SEED_CUSTOMERS=[];
     if (st.unread && from in st.unread) { st.unread[to] = (st.unread[to] || 0) + st.unread[from]; delete st.unread[from]; }
     return true;
   }
-  return { Err, LV, ROLE, TYPES, PAY, LK, SHARED, ACTIONS, init, apply, project, rename, resetActivity, cashExpected, till, daySheet, cashDiff, dinar, payDinar, dueDinar, reprice, centsOf, importOld, addPlatforms, cleanPhone, UNDO_MS, SN_OK, cleanSn, gotTxt, SHORT_MAX, OVER_MAX, W_DEF, W_MAX, lineW, warrantyEnd, wTxt, log, moves, refundCalc, fmtMoney, fmtCur, iqd, esc, cents, ms, isoD, dayStart, pctTxt };
+  return { Err, LV, ROLE, TYPES, PAY, LK, SHARED, ACTIONS, init, apply, project, rename, resetActivity, freshStart, cashExpected, till, daySheet, cashDiff, dinar, payDinar, dueDinar, reprice, centsOf, importOld, addPlatforms, cleanPhone, UNDO_MS, SN_OK, cleanSn, gotTxt, SHORT_MAX, OVER_MAX, W_DEF, W_MAX, lineW, warrantyEnd, wTxt, log, moves, refundCalc, fmtMoney, fmtCur, iqd, esc, cents, ms, isoD, dayStart, pctTxt };
 });
 
 // online mode: public address + public (anon) key only. No secret belongs in this file.
